@@ -18,11 +18,11 @@ async def create_task_command(message: types.Message):
     deadline = datetime.strptime(message.text.split()[5], '%Y-%m-%d') if len(message.text.split()) > 5 else None
 
     if not title or not worker_id or not deadline:
-        await message.answer('Invalid task creation. Please enter the task details in the following format: create_task <title> <description> <thumbnail_draft> <worker_id> <deadline>')
+        await message.answer('Некорректное создание задачи. Пожалуйста, введите информацию о задаче в следующем формате: create_task <название> <описание> <эскиз_задачи> <идентификатор работника_ид> <срок выполнения>')
         return
 
     task = TasksService.create_task(title, description, thumbnail_draft, worker_id, deadline, deadline)
-    await message.answer(f'Task "{task.title}" has been created and assigned to worker {task.worker.username}')
+    await message.answer(f'Задание "{task.title}" было создано и возложено на плечи {task.worker.username}')
 
 @dp.message_handler(lambda message: message.text.startswith('assign_task') and StatisticsService.check_role(message.from_user, 'Manager'))
 async def assign_task_command(message: types.Message):
@@ -31,17 +31,17 @@ async def assign_task_command(message: types.Message):
     worker_id = int(message.text.split()[2])
 
     if not task_id or not worker_id:
-        await message.answer('Invalid task assignment. Please enter the task ID and worker ID in the following format: assign_task <task_id> <worker_id>')
+        await message.answer('Неверное назначение задачи. Пожалуйста, введите идентификатор задачи и идентификатор работника в следующем формате: assign_task <идентификатор_задачи> <идентификатор_работника>')
         return
 
     task = TasksService.get_task_by_id(task_id)
 
     if not task or task.status == 'completed':
-        await message.answer('Invalid task assignment. The task with the given ID does not exist or has already been completed')
+        await message.answer('Неверное назначение задачи. Задача с указанным идентификатором не существует или уже выполнена')
         return
 
     TasksService.assign_task(task, worker_id)
-    await message.answer(f'Task "{task.title}" has been assigned to worker {task.worker.username}')
+    await message.answer(f'Задание "{task.title}" возложено на плечи {task.worker.username}')
 
 @dp.message_handler(lambda message: message.text.startswith('log_expense') and StatisticsService.check_role(message.from_user, 'Manager'))
 async def log_expense_command(message: types.Message):
@@ -50,7 +50,7 @@ async def log_expense_command(message: types.Message):
     currency = message.text.split()[2]
 
     if not amount or not currency or (currency != 'USD' and currency != 'RUB'):
-        await message.answer('Invalid expense logging. Please enter the amount and currency in the following format: log_expense <amount> <currency (USD or RUB)>')
+        await message.answer('Неверный журнал учета расходов. Пожалуйста, введите сумму и валюту в следующем формате: log_expense <сумма> <валюта (USD или RUB)>')
         return
 
     ExpensesService.log_expense(user.id, amount, currency)

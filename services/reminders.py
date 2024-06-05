@@ -17,7 +17,7 @@ class RemindersService:
                 # Send a reminder to the worker
                 await self.bot.send_message(
                     user.username,
-                    f'Reminder: Your task "{task.title}" is overdue. Please submit it as soon as possible.'
+                    f'Напоминалка: Задание "{task.title}" не выполнено. нужно сделать как можно скорее.'
                 )
 
     async def schedule_reminders(self):

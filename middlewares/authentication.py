@@ -8,15 +8,15 @@ class Authenticator:
         user = repository.get_user_by_username(username)
 
         if user is None:
-            return False, 'User not found'
+            return False, 'Пассажир не найден'
 
         if user.password != password:
-            return False, 'Incorrect password'
+            return False, 'Неправильный пароль)'
 
         if user.role.name != role:
-            return False, 'Incorrect role'
+            return False, 'Неправильная роль'
 
-        return True, 'Authentication successful'
+        return True, 'Авторизован'
 
     def check_role(self, user, role):
         if user.role.name == role:
