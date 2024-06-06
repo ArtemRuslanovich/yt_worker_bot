@@ -1,9 +1,10 @@
 from database import repository
 
 class PreviewsService:
+
     def __init__(self):
         pass
-
+    
     def create_preview(self, video_id, preview_maker_id, deadline, channel_id):
         preview = repository.create_preview(video_id, preview_maker_id, deadline, channel_id)
         return preview

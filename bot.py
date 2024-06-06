@@ -6,7 +6,7 @@ from services.reminders import RemindersService
 from services.statistics import StatisticsService
 
 bot = Bot(token=TOKEN)
-dp = Dispatcher(bot)
+dp = Dispatcher()
 
 # Register handlers
 dp.include_router(StatisticsService.router)
