@@ -1,6 +1,6 @@
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
-from models import User, Role, Task, Expense
+from .models import User, Role, Task, Expense
 
 class DatabaseRepository:
     def __init__(self, session: Session):
