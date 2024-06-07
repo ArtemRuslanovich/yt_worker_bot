@@ -1,3 +1,4 @@
+import datetime
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from .models import User, Role, Task, Expense
@@ -109,3 +110,6 @@ class DatabaseRepository:
         expense = self.get_expense_by_id(expense_id)
         self.session.delete(expense)
         self.session.commit()
+        
+    def get_overdue_tasks(self):
+        return self.session.query(Task).filter(Task.deadline < datetime.datetime.now()).all()

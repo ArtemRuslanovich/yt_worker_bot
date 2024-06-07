@@ -1,12 +1,18 @@
-from aiogram import dp, types
+from aiogram import Router, types
+from aiogram.filters import Command
+from aiogram.types import Message
 
 from services.channels import ChannelsService
 from services.expenses import ExpensesService
 from services.payment import PaymentService
 from services.statistics import StatisticsService
 
-@dp.message_handler(lambda message: message.text.startswith('create_channel') and StatisticsService.check_role(message.from_user, 'Admin'))
-async def create_channel_command(message: types.Message):
+router = Router()
+
+@router.message(Command(commands='create_channel'))
+async def create_channel_command(message: Message):
+    if not StatisticsService.check_role(message.from_user, 'Admin'):
+        return
     user = message.from_user
     name = message.text.split()[1]
 
@@ -17,8 +23,10 @@ async def create_channel_command(message: types.Message):
     channel = ChannelsService.create_channel(name, user.id)
     await message.answer(f'Channel "{channel.name}" has been created and you have been assigned as the manager')
 
-@dp.message_handler(lambda message: message.text.startswith('view_channels') and StatisticsService.check_role(message.from_user, 'Admin'))
-async def view_channels_command(message: types.Message):
+@router.message(Command(commands='view_channels'))
+async def view_channels_command(message: Message):
+    if not StatisticsService.check_role(message.from_user, 'Admin'):
+        return
     user = message.from_user
     channels = ChannelsService.get_channels_by_manager_id(user.id)
 
@@ -29,8 +37,10 @@ async def view_channels_command(message: types.Message):
     channel_messages = [f'{i+1}. {channel.name} (Total expenses: {channel.total_expenses} USD, Total payments: {channel.total_payments} USD)' for i, channel in enumerate(channels)]
     await message.answer('\n'.join(channel_messages))
 
-@dp.message_handler(lambda message: message.text.startswith('statistics') and StatisticsService.check_role(message.from_user, 'Admin'))
-async def statistics_command(message: types.Message):
+@router.message(Command(commands='statistics'))
+async def statistics_command(message: Message):
+    if not StatisticsService.check_role(message.from_user, 'Admin'):
+        return
     user = message.from_user
     channels = ChannelsService.get_channels_by_manager_id(user.id)
     total_expenses = 0
@@ -46,12 +56,15 @@ async def statistics_command(message: types.Message):
         f'Total payments for all channels: {total_payments} USD.'
     )
 
-@dp.message_handler(lambda message: message.text.startswith('log_expense') and StatisticsService.check_role(message.from_user, 'Admin'))
-async def log_expense_command(message: types.Message):
+@router.message(Command(commands='log_expense'))
+async def log_expense_command(message: Message):
+    if not StatisticsService.check_role(message.from_user, 'Admin'):
+        return
     user = message.from_user
-    amount = float(message.text.split()[1])
-    description = message.text.split()[2] if len(message.text.split()) > 2 else None
-    channel_id = int(message.text.split()[3]) if len(message.text.split()) > 3 else user.channel_id
+    text = message.text.split()
+    amount = float(text[1]) if len(text) > 1 else None
+    description = text[2] if len(text) > 2 else None
+    channel_id = int(text[3]) if len(text) > 3 else user.channel_id
 
     if not amount or (amount <= 0) or not description:
         await message.answer('Invalid expense logging. Please enter the amount, description, and channel ID in the following format: log_expense <amount> <description> [<channel_id>]')
@@ -60,12 +73,15 @@ async def log_expense_command(message: types.Message):
     expense = ExpensesService.log_expense(amount, description, channel_id)
     await message.answer(f'Expense of {amount} USD for "{description}" has been logged for channel {expense.channel.name}')
 
-@dp.message_handler(lambda message: message.text.startswith('log_payment') and StatisticsService.check_role(message.from_user, 'Admin'))
-async def log_payment_command(message: types.Message):
+@router.message(Command(commands='log_payment'))
+async def log_payment_command(message: Message):
+    if not StatisticsService.check_role(message.from_user, 'Admin'):
+        return
     user = message.from_user
-    amount = float(message.text.split()[1])
-    description = message.text.split()[2] if len(message.text.split()) > 2 else None
-    channel_id = int(message.text.split()[3]) if len(message.text.split()) > 3 else user.channel_id
+    text = message.text.split()
+    amount = float(text[1]) if len(text) > 1 else None
+    description = text[2] if len(text) > 2 else None
+    channel_id = int(text[3]) if len(text) > 3 else user.channel_id
 
     if not amount or (amount <= 0) or not description:
         await message.answer('Invalid payment logging. Please enter the amount, description, and channel ID in the following format: log_payment <amount> <description> [<channel_id>]')

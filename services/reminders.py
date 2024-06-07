@@ -1,19 +1,21 @@
 import asyncio
 from aiogram import Bot, Router, F
-from aiogram.types import Message
-from database import repository
+from database.repository import DatabaseRepository
 from datetime import timedelta
+from database import SessionLocal
+
+db_session = SessionLocal()
 
 # Define the router outside the class
 router = Router()
 
 class RemindersService:
-    def __init__(self, bot: Bot):
+    def __init__(self, bot: Bot, db_session: db_session):
         self.bot = bot
+        self.repository = DatabaseRepository(db_session)
 
     async def send_reminders(self):
-        # Get all tasks that are due today or overdue
-        overdue_tasks = repository.get_overdue_tasks()
+        overdue_tasks = self.repository.get_overdue_tasks()
 
         for task in overdue_tasks:
             user = task.user

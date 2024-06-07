@@ -1,13 +1,21 @@
 import datetime
-from aiogram import dp, types
+from aiogram import Router, types
+from aiogram.filters import Command
+from aiogram.types import Message
+
 from services.statistics import StatisticsService
 from services.tasks import TasksService
 
-@dp.message_handler(lambda message: message.text.startswith('submit_task') and StatisticsService.check_role(message.from_user, 'Worker'))
-async def submit_task_command(message: types.Message):
+router = Router()
+
+@router.message(Command(commands='submit_task'))
+async def submit_task_command(message: Message):
+    if not StatisticsService.check_role(message.from_user, 'Worker'):
+        return
     user = message.from_user
-    task_id = int(message.text.split()[1])
-    link = message.text.split()[2] if len(message.text.split()) > 2 else None
+    text = message.text.split()
+    task_id = int(text[1]) if len(text) > 1 else None
+    link = text[2] if len(text) > 2 else None
 
     if not task_id or not link:
         await message.answer('Invalid task submission. Please enter the task ID and link in the following format: submit_task <task_id> <link>')
@@ -19,11 +27,13 @@ async def submit_task_command(message: types.Message):
         await message.answer('Invalid task submission. You do not have a task with the given ID or the task has already been completed')
         return
 
-    TasksService.update_task(task_id, 'completed', datetime.now())
+    TasksService.update_task(task_id, 'completed', datetime.datetime.now())
     await message.answer(f'Task "{task.title}" has been submitted and is pending review')
 
-@dp.message_handler(lambda message: message.text.startswith('view_tasks') and StatisticsService.check_role(message.from_user, 'Worker'))
-async def view_tasks_command(message: types.Message):
+@router.message(Command(commands='view_tasks'))
+async def view_tasks_command(message: Message):
+    if not StatisticsService.check_role(message.from_user, 'Worker'):
+        return
     user = message.from_user
     tasks = TasksService.get_tasks_by_worker_id(user.id)
 
@@ -34,8 +44,10 @@ async def view_tasks_command(message: types.Message):
     task_messages = [f'{i+1}. {task.title} (Deadline: {task.deadline.strftime("%Y-%m-%d")})' for i, task in enumerate(tasks)]
     await message.answer('\n'.join(task_messages))
 
-@dp.message_handler(lambda message: message.text.startswith('statistics') and StatisticsService.check_role(message.from_user, 'Worker'))
-async def statistics_command(message: types.Message):
+@router.message(Command(commands='statistics'))
+async def statistics_command(message: Message):
+    if not StatisticsService.check_role(message.from_user, 'Worker'):
+        return
     user = message.from_user
     on_time, missed = StatisticsService.get_worker_statistics(user.id)
     total_payment = TasksService.get_worker_payment(user.id)

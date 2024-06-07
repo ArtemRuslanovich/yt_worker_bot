@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy import Column, DateTime, Integer, String, ForeignKey
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -25,7 +25,7 @@ class Task(Base):
     user_id = Column(Integer, ForeignKey('users.id'))
     title = Column(String)
     description = Column(String)
-    deadline = Column(String)
+    deadline = Column(DateTime)
     status = Column(String)
 
     user = relationship('User')
