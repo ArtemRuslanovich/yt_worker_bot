@@ -5,27 +5,28 @@ from config import TOKEN
 from services.reminders import RemindersService
 from services.statistics import StatisticsService
 from database import SessionLocal
+from aiogram import Router
 
 db_session = SessionLocal()
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
-# Register handlers
-dp.include_router(StatisticsService.router)
-dp.include_router(RemindersService.router)
+# Register routers
+routers = ['handlers.manager', 'handlers.worker', 'handlers.preview_maker', 'handlers.admin', 'handlers.start']
 
-for handler_module in ['handlers.manager', 'handlers.worker', 'handlers.preview_maker', 'handlers.admin']:
-    dp.include_router(getattr(importlib.import_module(handler_module), 'router'))
+for router_module in routers:
+    module = importlib.import_module(router_module)
+    dp.include_router(module.router)
 
 # Start reminders service
 async def start_reminders_service():
     service = RemindersService(bot, db_session)
     await service.schedule_reminders()
 
-async def on_startup(_):
+async def on_startup():
     await start_reminders_service()
 
 # Start bot
 if __name__ == '__main__':
-    asyncio.run(on_startup(None))  # Запустить on_startup как асинхронную функцию
-    dp.start_polling(skip_updates=True)
+    asyncio.run(on_startup())
+    dp.start_polling(bot, skip_updates=True)
