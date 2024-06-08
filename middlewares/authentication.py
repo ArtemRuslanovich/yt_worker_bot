@@ -5,7 +5,7 @@ class Authenticator:
         pass
 
     def authenticate_user(self, username, password, role):
-        user = repository.get_user_by_username(username)
+        user = repository.DatabaseRepository.get_user_by_username(username)
 
         if user is None:
             return False, 'Пассажир не найден'

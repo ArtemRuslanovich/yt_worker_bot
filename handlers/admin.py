@@ -1,4 +1,4 @@
-from aiogram import Router, types
+from aiogram import Router, types, Dispatcher
 from aiogram.filters import Command
 from aiogram.types import Message
 
@@ -89,3 +89,6 @@ async def log_payment_command(message: Message):
 
     payment = PaymentService.log_payment(amount, description, channel_id)
     await message.answer(f'Payment of {amount} USD for "{description}" has been logged for channel {payment.channel.name}')
+
+def register_handlers(dp: Dispatcher):
+    dp.include_router(router)
