@@ -1,32 +1,47 @@
 import asyncio
-import importlib
 from aiogram import Bot, Dispatcher
+from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.types import BotCommand
 from config import TOKEN
+from handlers import start, manager, worker, preview_maker, admin
 from services.reminders import RemindersService
-from services.statistics import StatisticsService
 from database import SessionLocal
-from aiogram import Router
 
-db_session = SessionLocal()
 bot = Bot(token=TOKEN)
-dp = Dispatcher()
+storage = MemoryStorage()
+dp = Dispatcher(storage=storage)
+db_session = SessionLocal()  # Инициализация базы данных
 
-# Register routers
-routers = ['handlers.manager', 'handlers.worker', 'handlers.preview_maker', 'handlers.admin', 'handlers.start']
+# Register handlers
+dp.include_router(start.router)
+print("Start router included")  # Отладочная информация
 
-for router_module in routers:
-    module = importlib.import_module(router_module)
-    dp.include_router(module.router)
+dp.include_router(manager.router)
+print("Manager router included")  # Отладочная информация
 
-# Start reminders service
-async def start_reminders_service():
-    service = RemindersService(bot, db_session)
-    await service.schedule_reminders()
+dp.include_router(worker.router)
+print("Worker router included")  # Отладочная информация
+
+dp.include_router(preview_maker.router)
+print("Preview maker router included")  # Отладочная информация
+
+dp.include_router(admin.router)
+print("Admin router included")  # Отладочная информация
 
 async def on_startup():
-    await start_reminders_service()
+    print("on_startup is running")  # Отладочная информация
+    await bot.set_my_commands([BotCommand(command="/start", description="Start the bot")])
+    print("Commands have been set")  # Отладочная информация
 
-# Start bot
-if __name__ == '__main__':
-    asyncio.run(on_startup())
-    dp.start_polling(bot, skip_updates=True)
+    print("Initializing RemindersService...")  # Отладочная информация
+    service = RemindersService(bot, db_session)
+    print("RemindersService initialized")  # Отладочная информация
+    # Не вызываем методы внутри RemindersService для проверки инициализации
+
+dp.startup.register(on_startup)
+
+print("Bot is starting...")  # Отладочная информация
+try:
+    asyncio.run(dp.start_polling(bot, skip_updates=True))
+except Exception as e:
+    print(f"Error: {e}")  # Отладочная информация
