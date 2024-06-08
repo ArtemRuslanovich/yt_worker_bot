@@ -1,4 +1,5 @@
-from aiogram import Router, Command, Message
+from aiogram import Router, Message
+from aiogram.filters.command import Command
 from database.repository import DatabaseRepository
 from services.preview import PreviewsService
 from services.statistics import StatisticsService

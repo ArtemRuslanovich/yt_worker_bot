@@ -1,10 +1,10 @@
-# handlers/worker.py
 import datetime
-from aiogram import Router, Command, Message
+from aiogram import Router, Message
+from aiogram.filters.command import Command
 from database.repository import DatabaseRepository
 from services.statistics import StatisticsService
-from services.tasks import TasksService
 from database import SessionLocal
+from services.tasks import TasksService
 
 router = Router()
 

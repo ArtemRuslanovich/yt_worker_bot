@@ -1,11 +1,12 @@
-# handlers/admin.py
-from aiogram import Router, Command, Message
+from aiogram import Router, Message
+from aiogram.filters.command import Command
 from database.repository import DatabaseRepository
 from services.channels import ChannelsService
 from services.expenses import ExpensesService
 from services.payment import PaymentService
 from services.statistics import StatisticsService
 from database import SessionLocal
+
 
 router = Router()
 

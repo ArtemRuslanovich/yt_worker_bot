@@ -1,12 +1,13 @@
 # handlers/manager.py
-from aiogram import Router, Command, Message
+import datetime
+from aiogram import Router, Message
+from aiogram.filters.command import Command
 from database.repository import DatabaseRepository
 from services.expenses import ExpensesService
 from services.payment import PaymentService
 from services.statistics import StatisticsService
-from services.tasks import TasksService
 from database import SessionLocal
-import datetime
+from services.tasks import TasksService
 
 router = Router()
 
