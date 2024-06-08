@@ -113,3 +113,11 @@ class DatabaseRepository:
         
     def get_overdue_tasks(self):
         return self.session.query(Task).filter(Task.deadline < datetime.datetime.now()).all()
+    
+    def get_user_role(user_id: int) -> str:
+        with Session() as session:
+            user = session.query(User).filter(User.id == user_id).one_or_none()
+            if user:
+                return user.role
+            else:
+                return 'unknown'

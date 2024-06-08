@@ -6,6 +6,7 @@ from config import TOKEN
 from handlers import start
 from services.reminders import RemindersService
 from database import SessionLocal
+from handlers.admin import router as admin_router
 
 bot = Bot(token=TOKEN)
 storage = MemoryStorage()
@@ -13,6 +14,7 @@ dp = Dispatcher(storage=storage)
 db_session = SessionLocal()  # Инициализация базы данных
 
 # Register handlers
+dp.include_router(admin_router)
 dp.include_router(start.router)
 print("Start router included")  # Отладочная информация
 
