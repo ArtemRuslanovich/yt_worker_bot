@@ -1,7 +1,7 @@
 import datetime
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
-from .models import User, Role, Task, Expense
+from .models import User, Role, Task, Expense, Channel, user_channel_association
 
 class DatabaseRepository:
     def __init__(self, session: Session):
@@ -121,3 +121,28 @@ class DatabaseRepository:
                 return user.role
             else:
                 return 'unknown'
+    
+    # Channel CRUD operations
+    def create_channel(self, name, manager_id, link):
+        channel = Channel(name=name, link=link, manager_id=manager_id)
+        self.session.add(channel)
+        self.session.commit()
+        return channel
+
+    def get_channel_by_id(self, channel_id):
+        return self.session.query(Channel).filter_by(id=channel_id).first()
+
+    def update_channel(self, channel_id, name):
+        channel = self.get_channel_by_id(channel_id)
+        channel.name = name
+        self.session.commit()
+        return channel
+
+    def get_channels_by_manager_id(self, manager_id):
+        return self.session.query(Channel).filter_by(manager_id=manager_id).all()
+
+    def get_channels_by_worker_id(self, worker_id):
+        return self.session.query(Channel).join(user_channel_association).filter(user_channel_association.c.user_id == worker_id).all()
+    
+    def get_channels_by_preview_maker_id(self, preview_maker_id):
+        return self.session.query(Channel).join(user_channel_association).filter(user_channel_association.c.user_id == preview_maker_id).all()

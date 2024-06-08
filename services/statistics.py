@@ -6,6 +6,9 @@ from database import repository
 router = Router()
 
 class StatisticsService:
+    def __init__(self, db_repository):
+        self.db_repository = db_repository
+
     @staticmethod
     @router.message(F.text == '/stats')
     async def stats_handler(message: Message):
@@ -19,9 +22,8 @@ class StatisticsService:
             videos, previews = StatisticsService.get_channel_statistics(message.chat.id)
             await message.answer(f"Videos: {videos}\nPreviews: {previews}")
 
-    @staticmethod
-    def get_worker_statistics(worker_id):
-        tasks = repository.DatabaseRepository.get_tasks_by_worker_id(worker_id)
+    def get_worker_statistics(self, worker_id):
+        tasks = self.db_repository.get_tasks_by_worker_id(worker_id)
         on_time = 0
         missed = 0
 
@@ -33,21 +35,18 @@ class StatisticsService:
 
         return on_time, missed
 
-    @staticmethod
-    def get_preview_maker_statistics(preview_maker_id):
-        previews = repository.DatabaseRepository.get_previews_by_preview_maker_id(preview_maker_id)
+    def get_preview_maker_statistics(self, preview_maker_id):
+        previews = self.db_repository.get_previews_by_preview_maker_id(preview_maker_id)
         return len(previews)
 
-    @staticmethod
-    def get_channel_statistics(channel_id):
-        videos = repository.DatabaseRepository.get_videos_by_channel_id(channel_id)
-        previews = repository.DatabaseRepository.get_previews_by_channel_id(channel_id)
+    def get_channel_statistics(self, channel_id):
+        videos = self.db_repository.get_videos_by_channel_id(channel_id)
+        previews = self.db_repository.get_previews_by_channel_id(channel_id)
         return len(videos), len(previews)
     
-    @staticmethod
-    def check_role(user_id, role):
+    def check_role(self, user_id, role):
         # Get user's role from the database
-        user_role = repository.DatabaseRepository.get_user_role(user_id)
+        user_role = self.db_repository.get_user_role(user_id)
         return user_role == role
 
 # Export the router to be included in the main bot script

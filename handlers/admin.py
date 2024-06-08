@@ -1,131 +1,90 @@
-from aiogram import Router, Message
+from aiogram import Dispatcher, Router
+from aiogram.types import Message
 from aiogram.filters.command import Command
+from aiogram.fsm.context import FSMContext
 from database.repository import DatabaseRepository
 from services.channels import ChannelsService
-from services.expenses import ExpensesService
-from services.payment import PaymentService
 from services.statistics import StatisticsService
 from database import SessionLocal
 
-
 router = Router()
 
+async def admin_role_required(message: Message, state: FSMContext, db_repository):
+    user_data = await state.get_data()
+    username = user_data.get('username')
+    user = db_repository.get_user_by_username(username)
+    
+    if not user or not StatisticsService().check_role(user.id, 'Admin'):
+        await message.answer("Доступ запрещен: у вас нет прав администратора.")
+        return False
+    return True
+
 @router.message(Command(commands='create_channel'))
-async def create_channel_command(message: Message):
-    # Создание сессии базы данных
-    db_session = SessionLocal()
-    db_repository = DatabaseRepository(db_session)
+async def create_channel_command(message: Message, state: FSMContext):
+    with SessionLocal() as db_session:
+        db_repository = DatabaseRepository(db_session)
+        if not await admin_role_required(message, state, db_repository):
+            return
 
-    if not StatisticsService(db_repository).check_role(message.from_user.id, 'Admin'):
-        db_session.close()
-        return
+        args = message.text.split()
+        if len(args) != 4:
+            await message.answer('Invalid channel creation. Please enter the channel name, link, and manager username in the following format: /create_channel <name> <link> <manager_username>')
+            return
+        
+        name, link, manager_username = args[1], args[2], args[3]
+        manager = db_repository.get_user_by_username(manager_username)
+        
+        if not manager:
+            await message.answer('Manager not found. Please provide a valid manager username.')
+            return
 
-    user = message.from_user
-    name = message.text.split()[1]
-
-    if not name:
-        await message.answer('Invalid channel creation. Please enter the channel name in the following format: create_channel <name>')
-        db_session.close()
-        return
-
-    channel = ChannelsService(db_repository).create_channel(name, user.id)
-    await message.answer(f'Channel "{channel.name}" has been created and you have been assigned as the manager')
-    db_session.close()
+        channel_service = ChannelsService(db_repository)
+        channel = channel_service.create_channel(name, manager.id, link)
+        await message.answer(f'Channel "{channel.name}" has been created and user "{manager_username}" has been assigned as the manager.')
 
 @router.message(Command(commands='view_channels'))
-async def view_channels_command(message: Message):
-    # Создание сессии базы данных
-    db_session = SessionLocal()
-    db_repository = DatabaseRepository(db_session)
+async def view_channels_command(message: Message, state: FSMContext):
+    with SessionLocal() as db_session:
+        db_repository = DatabaseRepository(db_session)
+        if not await admin_role_required(message, state, db_repository):
+            return
 
-    if not StatisticsService(db_repository).check_role(message.from_user.id, 'Admin'):
-        db_session.close()
-        return
+        user_data = await state.get_data()
+        username = user_data.get('username')
+        admin_user = db_repository.get_user_by_username(username)
+        
+        channels = ChannelsService(db_repository).get_channels_by_manager_id(admin_user.id)
 
-    user = message.from_user
-    channels = ChannelsService(db_repository).get_channels_by_manager_id(user.id)
+        if not channels:
+            await message.answer('You do not have any channels assigned to you')
+            return
 
-    if not channels:
-        await message.answer('You do not have any channels assigned to you')
-        db_session.close()
-        return
-
-    channel_messages = [f'{i+1}. {channel.name} (Total expenses: {channel.total_expenses} USD, Total payments: {channel.total_payments} USD)' for i, channel in enumerate(channels)]
-    await message.answer('\n'.join(channel_messages))
-    db_session.close()
+        channel_messages = [
+            f'{i+1}. {channel.name} (Total expenses: {channel.total_expenses} USD, Total payments: {channel.total_payments} USD)'
+            for i, channel in enumerate(channels)
+        ]
+        await message.answer('\n'.join(channel_messages))
 
 @router.message(Command(commands='statistics'))
-async def statistics_command(message: Message):
-    # Создание сессии базы данных
-    db_session = SessionLocal()
-    db_repository = DatabaseRepository(db_session)
+async def statistics_command(message: Message, state: FSMContext):
+    with SessionLocal() as db_session:
+        db_repository = DatabaseRepository(db_session)
+        if not await admin_role_required(message, state, db_repository):
+            return
 
-    if not StatisticsService(db_repository).check_role(message.from_user.id, 'Admin'):
-        db_session.close()
-        return
+        user_data = await state.get_data()
+        username = user_data.get('username')
+        admin_user = db_repository.get_user_by_username(username)
 
-    user = message.from_user
-    channels = ChannelsService(db_repository).get_channels_by_manager_id(user.id)
-    total_expenses = 0
-    total_payments = 0
+        channels = ChannelsService(db_repository).get_channels_by_manager_id(admin_user.id)
+        total_expenses = sum(channel.total_expenses for channel in channels)
+        total_payments = sum(channel.total_payments for channel in channels)
 
-    for channel in channels:
-        total_expenses += channel.total_expenses
-        total_payments += channel.total_payments
+        await message.answer(
+            f'You have {len(channels)} channels under your management.\n'
+            f'Total expenses for all channels: {total_expenses} USD.\n'
+            f'Total payments for all channels: {total_payments} USD.'
+        )
 
-    await message.answer(
-        f'You have {len(channels)} channels under your management.\n'
-        f'Total expenses for all channels: {total_expenses} USD.\n'
-        f'Total payments for all channels: {total_payments} USD.'
-    )
-    db_session.close()
-
-@router.message(Command(commands='log_expense'))
-async def log_expense_command(message: Message):
-    # Создание сессии базы данных
-    db_session = SessionLocal()
-    db_repository = DatabaseRepository(db_session)
-
-    if not StatisticsService(db_repository).check_role(message.from_user.id, 'Admin'):
-        db_session.close()
-        return
-
-    user = message.from_user
-    text = message.text.split()
-    amount = float(text[1]) if len(text) > 1 else None
-    description = text[2] if len(text) > 2 else None
-    channel_id = int(text[3]) if len(text) > 3 else user.channel_id
-
-    if not amount or (amount <= 0) or not description:
-        await message.answer('Invalid expense logging. Please enter the amount, description, and channel ID in the following format: log_expense <amount> <description> [<channel_id>]')
-        db_session.close()
-        return
-
-    expense = ExpensesService(db_repository).log_expense(user.id, amount, description, channel_id)
-    await message.answer(f'Expense of {amount} USD for "{description}" has been logged for channel {expense.channel.name}')
-    db_session.close()
-
-@router.message(Command(commands='log_payment'))
-async def log_payment_command(message: Message):
-    # Создание сессии базы данных
-    db_session = SessionLocal()
-    db_repository = DatabaseRepository(db_session)
-
-    if not StatisticsService(db_repository).check_role(message.from_user.id, 'Admin'):
-        db_session.close()
-        return
-
-    user = message.from_user
-    text = message.text.split()
-    amount = float(text[1]) if len(text) > 1 else None
-    description = text[2] if len(text) > 2 else None
-    channel_id = int(text[3]) if len(text) > 3 else user.channel_id
-
-    if not amount or (amount <= 0) or not description:
-        await message.answer('Invalid payment logging. Please enter the amount, description, and channel ID in the following format: log_payment <amount> <description> [<channel_id>]')
-        db_session.close()
-        return
-
-    payment = PaymentService(db_repository).log_payment(user.id, amount, description, channel_id)
-    await message.answer(f'Payment of {amount} USD for "{description}" has been logged for channel {payment.channel.name}')
-    db_session.close()
+def register_handlers(dp: Dispatcher):
+    dp.include_router(router)

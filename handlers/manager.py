@@ -1,116 +1,95 @@
-# handlers/manager.py
 import datetime
-from aiogram import Router, Message
+from aiogram import Dispatcher, Router
+from aiogram.types import Message
 from aiogram.filters.command import Command
 from database.repository import DatabaseRepository
 from services.expenses import ExpensesService
-from services.payment import PaymentService
 from services.statistics import StatisticsService
-from database import SessionLocal
 from services.tasks import TasksService
+from database import SessionLocal
 
 router = Router()
 
+async def manager_role_required(message: Message, db_repository):
+    """Проверка, что пользователь имеет роль 'Manager'."""
+    if not StatisticsService(db_repository).check_role(message.from_user.id, 'Manager'):
+        await message.answer("Доступ запрещен: у вас нет прав менеджера.")
+        return False
+    return True
+
 @router.message(Command(commands='create_task'))
 async def create_task_command(message: Message):
-    # Создание сессии базы данных
-    db_session = SessionLocal()
-    db_repository = DatabaseRepository(db_session)
+    with SessionLocal() as db_session:
+        db_repository = DatabaseRepository(db_session)
+        if not await manager_role_required(message, db_repository):
+            return
 
-    if not StatisticsService(db_repository).check_role(message.from_user.id, 'Manager'):
-        db_session.close()
-        return
+        text = message.text.split()
+        title = text[1] if len(text) > 1 else None
+        description = text[2] if len(text) > 2 else None
+        thumbnail_draft = text[3] if len(text) > 3 else None
+        worker_id = int(text[4]) if len(text) > 4 else None
+        deadline = datetime.datetime.strptime(text[5], '%Y-%m-%d') if len(text) > 5 else None
 
-    user = message.from_user
-    text = message.text.split()
-    title = text[1] if len(text) > 1 else None
-    description = text[2] if len(text) > 2 else None
-    thumbnail_draft = text[3] if len(text) > 3 else None
-    worker_id = int(text[4]) if len(text) > 4 else None
-    deadline = datetime.datetime.strptime(text[5], '%Y-%m-%d') if len(text) > 5 else None
+        if not title or not worker_id or not deadline:
+            await message.answer('Invalid task creation. Please enter task information in the correct format.')
+            return
 
-    if not title or not worker_id or not deadline:
-        await message.answer('Invalid task creation. Please enter task information in the following format: create_task <title> <description> <thumbnail_draft> <worker_id> <deadline>')
-        db_session.close()
-        return
-
-    task = TasksService(db_repository).create_task(title, description, thumbnail_draft, worker_id, deadline)
-    await message.answer(f'Task "{task.title}" has been created and assigned to {task.worker.username}')
-    db_session.close()
+        task = TasksService(db_repository).create_task(title, description, thumbnail_draft, worker_id, deadline)
+        await message.answer(f'Task "{task.title}" has been created and assigned to {task.worker.username}')
 
 @router.message(Command(commands='assign_task'))
 async def assign_task_command(message: Message):
-    # Создание сессии базы данных
-    db_session = SessionLocal()
-    db_repository = DatabaseRepository(db_session)
+    with SessionLocal() as db_session:
+        db_repository = DatabaseRepository(db_session)
+        if not await manager_role_required(message, db_repository):
+            return
 
-    if not StatisticsService(db_repository).check_role(message.from_user.id, 'Manager'):
-        db_session.close()
-        return
+        text = message.text.split()
+        task_id = int(text[1]) if len(text) > 1 else None
+        worker_id = int(text[2]) if len(text) > 2 else None
 
-    user = message.from_user
-    text = message.text.split()
-    task_id = int(text[1]) if len(text) > 1 else None
-    worker_id = int(text[2]) if len(text) > 2 else None
+        if not task_id or not worker_id:
+            await message.answer('Invalid task assignment. Please enter task ID and worker ID in the correct format.')
+            return
 
-    if not task_id or not worker_id:
-        await message.answer('Invalid task assignment. Please enter task ID and worker ID in the following format: assign_task <task_id> <worker_id>')
-        db_session.close()
-        return
+        if not TasksService(db_repository).assign_task(task_id, worker_id):
+            await message.answer('Task assignment failed. Please check task and worker IDs.')
+            return
 
-    task = TasksService(db_repository).get_task_by_id(task_id)
-
-    if not task or task.status == 'completed':
-        await message.answer('Invalid task assignment. Task with provided ID does not exist or is already completed')
-        db_session.close()
-        return
-
-    TasksService(db_repository).assign_task(task_id, worker_id)
-    await message.answer(f'Task "{task.title}" has been assigned to {task.worker.username}')
-    db_session.close()
+        await message.answer(f'Task has been assigned to worker ID {worker_id}.')
 
 @router.message(Command(commands='log_expense'))
 async def log_expense_command(message: Message):
-    # Создание сессии базы данных
-    db_session = SessionLocal()
-    db_repository = DatabaseRepository(db_session)
+    with SessionLocal() as db_session:
+        db_repository = DatabaseRepository(db_session)
+        if not await manager_role_required(message, db_repository):
+            return
 
-    if not StatisticsService(db_repository).check_role(message.from_user.id, 'Manager'):
-        db_session.close()
-        return
+        text = message.text.split()
+        amount = float(text[1]) if len(text) > 1 else None
+        currency = text[2] if len(text) > 2 else None
 
-    user = message.from_user
-    text = message.text.split()
-    amount = float(text[1]) if len(text) > 1 else None
-    currency = text[2] if len(text) > 2 else None
+        if not amount or not currency or (currency not in ['USD', 'RUB']):
+            await message.answer('Invalid expense logging. Please enter amount and currency in the correct format.')
+            return
 
-    if not amount or not currency or (currency != 'USD' and currency != 'RUB'):
-        await message.answer('Invalid expense logging. Please enter amount and currency in the following format: log_expense <amount> <currency (USD or RUB)>')
-        db_session.close()
-        return
-
-    ExpensesService(db_repository).log_expense(user.id, amount, currency)
-    await message.answer(f'Expense of {amount} {currency} has been logged')
-    db_session.close()
+        ExpensesService(db_repository).log_expense(message.from_user.id, amount, currency)
+        await message.answer(f'Expense of {amount} {currency} has been logged.')
 
 @router.message(Command(commands='statistics'))
 async def statistics_command(message: Message):
-    # Создание сессии базы данных
-    db_session = SessionLocal()
-    db_repository = DatabaseRepository(db_session)
+    with SessionLocal() as db_session:
+        db_repository = DatabaseRepository(db_session)
+        if not await manager_role_required(message, db_repository):
+            return
 
-    if not StatisticsService(db_repository).check_role(message.from_user.id, 'Manager'):
-        db_session.close()
-        return
+        stats = StatisticsService(db_repository).get_worker_statistics(message.from_user.id)
+        await message.answer(
+            f'You have completed {stats["on_time"]} tasks on time and missed {stats["missed"]} deadlines.\n'
+            f'Total expenses: {stats["total_expenses"]} USD, {stats["total_rub"]} RUB.\n'
+            f'Total payments: {stats["total_payments"]} USD.'
+        )
 
-    user = message.from_user
-    on_time, missed = StatisticsService(db_repository).get_worker_statistics(user.id)
-    total_usd, total_rub = ExpensesService(db_repository).get_total_expenses(user.id)
-    total_payments = PaymentService(db_repository).get_total_payments(user.id)
-
-    await message.answer(
-        f'You have completed {on_time} tasks on time and missed {missed} deadlines.\n'
-        f'Total expenses: {total_usd} USD, {total_rub} RUB.\n'
-        f'Total payments: {total_payments} USD.'
-    )
-    db_session.close()
+def register_handlers(dp: Dispatcher):
+    dp.include_router(router)
