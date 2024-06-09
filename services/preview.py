@@ -1,30 +1,22 @@
-from database import repository
+from database.repository import DatabaseRepository
 
 class PreviewsService:
-
-    def __init__(self):
-        pass
-    
-    def create_preview(self, video_id, preview_maker_id, deadline, channel_id):
-        preview = repository.create_preview(video_id, preview_maker_id, deadline, channel_id)
-        return preview
+    def __init__(self, db_repository: DatabaseRepository):
+        self.db_repository = db_repository
 
     def get_preview_by_id(self, preview_id):
-        preview = repository.get_preview_by_id(preview_id)
-        return preview
+        return self.db_repository.get_preview_by_id(preview_id)
 
     def update_preview(self, preview_id, status, link):
-        preview = repository.update_preview(preview_id, status, link)
-        return preview
+        return self.db_repository.update_preview(preview_id, status, link)
 
     def get_previews_by_preview_maker_id(self, preview_maker_id):
-        previews = repository.get_previews_by_preview_maker_id(preview_maker_id)
-        return previews
+        return self.db_repository.get_previews_by_preview_maker_id(preview_maker_id)
 
-    def get_previews_by_channel_id(self, channel_id):
-        previews = repository.get_previews_by_channel_id(channel_id)
-        return previews
+    def get_preview_maker_statistics(self, preview_maker_id):
+        previews = self.db_repository.get_previews_by_preview_maker_id(preview_maker_id)
+        return len(previews)
 
-    def get_overdue_previews(self):
-        previews = repository.get_overdue_previews()
-        return previews
+    def get_preview_maker_payment(self, preview_maker_id):
+        previews = self.db_repository.get_previews_by_preview_maker_id(preview_maker_id)
+        return sum(preview.payment for preview in previews)

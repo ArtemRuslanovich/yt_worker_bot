@@ -6,21 +6,28 @@ from database.repository import DatabaseRepository
 from services.tasks import TasksService
 from services.statistics import StatisticsService
 from database import SessionLocal
+from aiogram.fsm.context import FSMContext
 
 router = Router()
 
-async def worker_role_required(message: Message, db_repository):
+async def worker_role_required(message: Message, state: FSMContext, db_repository):
     """Проверка, что пользователь имеет роль 'Worker'."""
-    if not StatisticsService(db_repository).check_role(message.from_user.id, 'Worker'):
+    user_data = await state.get_data()
+    username = user_data.get('username')
+    if not username:
+        await message.answer("Ошибка аутентификации. Пожалуйста, войдите в систему.")
+        return False
+
+    if not StatisticsService(db_repository).check_role(username, 'Worker'):
         await message.answer("Доступ запрещен: у вас нет прав работника.")
         return False
     return True
 
 @router.message(Command(commands='submit_task'))
-async def submit_task_command(message: Message):
+async def submit_task_command(message: Message, state: FSMContext):
     with SessionLocal() as db_session:
         db_repository = DatabaseRepository(db_session)
-        if not await worker_role_required(message, db_repository):
+        if not await worker_role_required(message, state, db_repository):
             return
 
         text = message.text.split()
@@ -41,10 +48,10 @@ async def submit_task_command(message: Message):
         await message.answer(f'Task "{task.title}" has been submitted and is pending review.')
 
 @router.message(Command(commands='view_tasks'))
-async def view_tasks_command(message: Message):
+async def view_tasks_command(message: Message, state: FSMContext):
     with SessionLocal() as db_session:
         db_repository = DatabaseRepository(db_session)
-        if not await worker_role_required(message, db_repository):
+        if not await worker_role_required(message, state, db_repository):
             return
 
         tasks = TasksService(db_repository).get_tasks_by_worker_id(message.from_user.id)
@@ -57,10 +64,10 @@ async def view_tasks_command(message: Message):
         await message.answer('\n'.join(task_messages))
 
 @router.message(Command(commands='statistics'))
-async def statistics_command(message: Message):
+async def statistics_command(message: Message, state: FSMContext):
     with SessionLocal() as db_session:
         db_repository = DatabaseRepository(db_session)
-        if not await worker_role_required(message, db_repository):
+        if not await worker_role_required(message, state, db_repository):
             return
 
         stats = StatisticsService(db_repository).get_worker_statistics(message.from_user.id)
