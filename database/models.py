@@ -18,7 +18,6 @@ class User(Base):
     password = Column(String)
 
     role = relationship('Role')
-    channels = relationship('Channel', secondary=user_channel_association, back_populates='workers')
 
 class Role(Base):
     __tablename__ = 'roles'
@@ -31,24 +30,28 @@ class Task(Base):
 
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey('users.id'))
+    channel_id = Column(Integer, ForeignKey('channels.id'))
     title = Column(String)
     description = Column(String)
     deadline = Column(DateTime)
-    status = Column(String, default='pending')
+    status = Column(String)
+    link = Column(String)
+    actual_completion_date = Column(DateTime)
 
-    user = relationship('User', back_populates='tasks')
+    user = relationship('User')
+    channel = relationship('Channel')
 
 class Expense(Base):
     __tablename__ = 'expenses'
 
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey('users.id'))
+    channel_id = Column(Integer, ForeignKey('channels.id'))
     amount = Column(Float)
     currency = Column(String)
-    channel_id = Column(Integer, ForeignKey('channels.id'))
 
-    user = relationship('User', back_populates='expenses')
-    channel = relationship('Channel', back_populates='expenses')
+    user = relationship('User')
+    channel = relationship('Channel')
 
 class Payment(Base):
     __tablename__ = 'payments'
@@ -67,10 +70,9 @@ class Channel(Base):
     link = Column(String)
     manager_id = Column(Integer, ForeignKey('users.id'))
 
-    manager = relationship('User', back_populates='managed_channels')
-    workers = relationship('User', secondary=user_channel_association, back_populates='channels')
+    manager = relationship('User', backref='managed_channels')
+    workers = relationship('User', secondary=user_channel_association, backref='channels')
     payments = relationship('Payment', back_populates='channel')
-    expenses = relationship('Expense', back_populates='channel')
 
     @property
     def total_expenses(self):
@@ -79,7 +81,17 @@ class Channel(Base):
     @property
     def total_payments(self):
         return sum(payment.amount for payment in self.payments)
-    
+
+class Video(Base):
+    __tablename__ = 'videos'
+
+    id = Column(Integer, primary_key=True)
+    title = Column(String)
+    description = Column(String)
+    upload_date = Column(DateTime)
+    worker_id = Column(Integer, ForeignKey('users.id'))
+
+    worker = relationship('User')
 
 class Preview(Base):
     __tablename__ = 'previews'
@@ -92,4 +104,4 @@ class Preview(Base):
     payment = Column(Float)
 
     video = relationship('Video')
-    preview_maker = relationship('User', backref='previews')
+    preview_maker = relationship('User')
