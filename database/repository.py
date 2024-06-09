@@ -14,7 +14,7 @@ class DatabaseRepository:
         return user
 
     def get_user_by_username(self, username):
-        return self.session.query(User).filter_by(username=username).first()
+        return self.session.query(User).filter_by(username=str(username)).first()
 
     def get_user_by_id(self, user_id):
         return self.session.query(User).filter_by(id=user_id).first()
@@ -59,8 +59,16 @@ class DatabaseRepository:
         self.session.commit()
 
     # Task CRUD operations
-    def create_task(self, title, description, worker_id, deadline, channel_id):
-        task = Task(title=title, description=description, user_id=worker_id, deadline=deadline, channel_id=channel_id)
+    def create_task(self, user_id, title, description, theme, deadline, status, channel_id):
+        task = Task(
+            user_id=user_id,
+            title=title,
+            description=description,
+            theme=theme,  # Добавляем тему задачи
+            deadline=deadline,
+            status=status,
+            channel_id=channel_id
+        )
         self.session.add(task)
         self.session.commit()
         return task
@@ -73,6 +81,9 @@ class DatabaseRepository:
 
     def update_task(self, task_id, **kwargs):
         task = self.get_task_by_id(task_id)
+        if not task:
+            return None
+
         for key, value in kwargs.items():
             if hasattr(task, key):
                 setattr(task, key, value)
@@ -83,12 +94,6 @@ class DatabaseRepository:
         task = self.get_task_by_id(task_id)
         self.session.delete(task)
         self.session.commit()
-
-    def assign_task(self, task_id, worker_id):
-        task = self.get_task_by_id(task_id)
-        task.user_id = worker_id
-        self.session.commit()
-        return task
 
     # Expense CRUD operations
     def create_expense(self, user_id, amount, currency, channel_id):
@@ -102,9 +107,6 @@ class DatabaseRepository:
 
     def get_expenses_by_user_id(self, user_id):
         return self.session.query(Expense).filter_by(user_id=user_id).all()
-
-    def get_expenses_by_channel_id(self, channel_id):
-        return self.session.query(Expense).filter_by(channel_id=channel_id).all()
 
     def update_expense(self, expense_id, **kwargs):
         expense = self.get_expense_by_id(expense_id)
@@ -129,12 +131,6 @@ class DatabaseRepository:
     def get_channel_by_id(self, channel_id):
         return self.session.query(Channel).filter_by(id=channel_id).first()
 
-    def get_channels_by_manager_id(self, manager_id):
-        return self.session.query(Channel).filter_by(manager_id=manager_id).all()
-
-    def get_channels_by_worker_id(self, worker_id):
-        return self.session.query(Channel).join(user_channel_association).filter(user_channel_association.c.user_id == worker_id).all()
-
     def update_channel(self, channel_id, **kwargs):
         channel = self.get_channel_by_id(channel_id)
         for key, value in kwargs.items():
@@ -148,26 +144,27 @@ class DatabaseRepository:
         self.session.delete(channel)
         self.session.commit()
 
+    def get_channels_by_manager_id(self, manager_id):
+        return self.session.query(Channel).filter_by(manager_id=manager_id).all()
+
+    def get_channels_by_worker_id(self, worker_id):
+        return self.session.query(Channel).join(user_channel_association).filter(user_channel_association.c.user_id == worker_id).all()
+
+    def get_channels_by_preview_maker_id(self, preview_maker_id):
+        return self.session.query(Channel).join(user_channel_association).filter(user_channel_association.c.user_id == preview_maker_id).all()
+
     def get_channel_by_name(self, name):
         return self.session.query(Channel).filter_by(name=name).first()
 
-    # Payment CRUD operations
-    def create_payment(self, channel_id, amount):
-        payment = Payment(channel_id=channel_id, amount=amount)
-        self.session.add(payment)
-        self.session.commit()
-        return payment
+    def get_overdue_tasks(self):
+        return self.session.query(Task).filter(Task.deadline < datetime.datetime.now()).all()
 
-    def get_payments_by_channel_id(self, channel_id):
-        return self.session.query(Payment).filter_by(channel_id=channel_id).all()
-
-    # Statistics operations
     def get_user_role(self, user_id: int) -> str:
         user = self.get_user_by_id(user_id)
         if user:
             return user.role.name
         return 'unknown'
-    
+
     def get_total_expenses_for_channel(self, channel_id):
         expenses = self.session.query(Expense).filter_by(channel_id=channel_id).all()
         return sum(expense.amount for expense in expenses)
@@ -175,7 +172,7 @@ class DatabaseRepository:
     def get_total_payments_for_channel(self, channel_id):
         payments = self.session.query(Payment).filter_by(channel_id=channel_id).all()
         return sum(payment.amount for payment in payments)
-    
+        
     def get_preview_by_id(self, preview_id):
         return self.session.query(Preview).filter_by(id=preview_id).first()
 
@@ -189,3 +186,14 @@ class DatabaseRepository:
 
     def get_previews_by_preview_maker_id(self, preview_maker_id):
         return self.session.query(Preview).filter_by(preview_maker_id=preview_maker_id).all()
+    
+    def set_technical_description(self, preview_id, description):
+        preview = self.get_preview_by_id(preview_id)
+        if preview:
+            preview.technical_description = description
+            self.session.commit()
+            return preview
+
+    def get_technical_description(self, preview_id):
+        preview = self.get_preview_by_id(preview_id)
+        return preview.technical_description if preview else None

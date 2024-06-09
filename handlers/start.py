@@ -16,7 +16,7 @@ class AuthStates(StatesGroup):
 @router.message(Command(commands='start'))
 async def cmd_start(message: types.Message, state: FSMContext):
     role_keyboard = ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text="Admin")], [KeyboardButton(text="Manager")]],
+        keyboard=[[KeyboardButton(text="Admin")], [KeyboardButton(text="Manager")], [KeyboardButton(text="Worker")], [KeyboardButton(text="Preview_maker")]],
         resize_keyboard=True,
     )
     await message.answer("Welcome to our bot! Choose your role:", reply_markup=role_keyboard)

@@ -26,3 +26,11 @@ class PaymentService:
     def get_total_payments(self, channel_id):
         payments = repository.get_payments_by_channel_id(channel_id)
         return sum(payment.amount for payment in payments)
+    
+    def calculate_bonus(self, base_amount, bonus_percentage):
+        return base_amount * (bonus_percentage / 100.0)
+
+    def get_worker_payment_with_bonus(self, worker_id, bonus_percentage):
+        total_payment = self.get_worker_payment(worker_id)
+        bonus = self.calculate_bonus(total_payment, bonus_percentage)
+        return total_payment + bonus

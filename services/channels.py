@@ -24,3 +24,6 @@ class ChannelsService:
 
     def get_channels_by_preview_maker_id(self, preview_maker_id):
         return self.db_repository.get_channels_by_preview_maker_id(preview_maker_id)
+
+    def get_channel_by_name(self, name):
+        return self.db_repository.get_channel_by_name(name)

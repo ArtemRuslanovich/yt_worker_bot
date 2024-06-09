@@ -32,6 +32,7 @@ class Task(Base):
     user_id = Column(Integer, ForeignKey('users.id'))
     channel_id = Column(Integer, ForeignKey('channels.id'))
     title = Column(String)
+    theme = Column(String, nullable=True)  # Добавлено для хранения темы задачи
     description = Column(String)
     deadline = Column(DateTime)
     status = Column(String)
@@ -102,6 +103,7 @@ class Preview(Base):
     status = Column(String)
     link = Column(String)
     payment = Column(Float)
+    technical_description = Column(String, nullable=True)  # Добавлено для хранения ТЗ
 
     video = relationship('Video')
     preview_maker = relationship('User')

@@ -2,20 +2,26 @@ from aiogram import Dispatcher, Router
 from aiogram.types import Message
 from aiogram.filters.command import Command
 from database.repository import DatabaseRepository
+from middlewares.authentication import Authenticator
 from services.channels import ChannelsService
 from services.payment import PaymentService
-from services.statistics import StatisticsService
 from database import SessionLocal
 from aiogram.fsm.context import FSMContext
+import logging
 
 router = Router()
 
 async def admin_role_required(message: Message, state: FSMContext, db_repository):
     user_data = await state.get_data()
+    logging.info(f"State user data: {user_data}")  # Отладочное сообщение
     username = user_data.get('username')
+    role = user_data.get('role')
+    authenticator = Authenticator(db_repository)
+
     user = db_repository.get_user_by_username(username)
 
-    if not user or not StatisticsService(db_repository).check_role(user.id, 'Admin'):
+    logging.info(f"Checking role for user: {user}")  # Отладочное сообщение
+    if not user or not authenticator.check_role(user, 'Admin'):
         await message.answer("Access denied: you do not have admin rights.")
         return False
     return True
@@ -102,6 +108,70 @@ async def statistics_command(message: Message, state: FSMContext):
             f'Total expenses for all channels: {total_expenses} USD.\n'
             f'Total payments for all channels: {total_payments} USD.'
         )
+
+@router.message(Command(commands='send_message'))
+async def send_message_command(message: Message, state: FSMContext, db_repository):
+    if not await admin_role_required(message, state, db_repository):
+        return
+
+    args = message.text.split(maxsplit=3)
+    if len(args) < 4:
+        await message.answer("Usage: /send_message <channel_name> <message>")
+        return
+
+    channel_name, channel_message = args[1], args[2:]
+    channel = db_repository.get_channel_by_name(channel_name)
+    if not channel:
+        await message.answer("Channel not found.")
+        return
+
+    # Симулируем отправку сообщения в канал (здесь должен быть реальный вызов API или бота)
+    await message.answer(f"Message sent to {channel.name}: '{channel_message}'")
+
+@router.message(Command(commands='view_content_statistics'))
+async def view_content_statistics_command(message: Message, state: FSMContext, db_repository):
+    if not await admin_role_required(message, state, db_repository):
+        return
+
+    stats = db_repository.get_monthly_content_statistics()  # Предположим, что такой метод есть в репозитории
+    await message.answer(
+        f"Monthly content statistics:\n"
+        f"Videos created: {stats['videos_created']}\n"
+        f"Previews created: {stats['previews_created']}"
+    )
+
+@router.message(Command(commands='add_expense'))
+async def add_expense_command(message: Message, state: FSMContext, db_repository):
+    if not await admin_role_required(message, state, db_repository):
+        return
+
+    args = message.text.split(maxsplit=4)
+    if len(args) < 5:
+        await message.answer("Usage: /add_expense <channel_name> <amount> <currency>")
+        return
+
+    channel_name, amount, currency = args[1], float(args[2]), args[3]
+    channel = db_repository.get_channel_by_name(channel_name)
+    if not channel:
+        await message.answer("Channel not found.")
+        return
+
+    db_repository.add_expense(channel.id, amount, currency)
+    await message.answer(f"Added {amount} {currency} expense to {channel.name}.")
+
+@router.message(Command(commands='set_bonus'))
+async def set_bonus_command(message: Message, state: FSMContext, db_repository):
+    if not await admin_role_required(message, state, db_repository):
+        return
+
+    args = message.text.split()
+    if len(args) < 2:
+        await message.answer("Usage: /set_bonus <percentage>")
+        return
+
+    percentage = float(args[1])
+    db_repository.set_bonus_percentage(percentage)
+    await message.answer(f"Bonus percentage set to {percentage}%.")
 
 def register_handlers(dp: Dispatcher):
     dp.include_router(router)

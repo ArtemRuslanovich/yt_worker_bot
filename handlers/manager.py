@@ -1,39 +1,52 @@
 import datetime
+import shlex
 from aiogram import Dispatcher, Router
 from aiogram.types import Message
 from aiogram.filters.command import Command
 from database.repository import DatabaseRepository
-from services.tasks import TasksService
+from middlewares.authentication import Authenticator
 from services.expenses import ExpensesService
+from services.tasks import TasksService
 from services.statistics import StatisticsService
 from database import SessionLocal
+from aiogram.fsm.context import FSMContext
+import logging
 
 router = Router()
 
-async def manager_role_required(message: Message, db_repository):
-    """Проверка, что пользователь имеет роль 'Manager'."""
-    if not StatisticsService(db_repository).check_role(message.from_user.id, 'Manager'):
-        await message.answer("Доступ запрещен: у вас нет прав менеджера.")
+async def manager_role_required(message: Message, state: FSMContext, db_repository):
+    user_data = await state.get_data()
+    logging.info(f"State user data: {user_data}")  # Отладочное сообщение
+    username = user_data.get('username')
+    role = user_data.get('role')
+    authenticator = Authenticator(db_repository)
+
+    user = db_repository.get_user_by_username(username)
+
+    logging.info(f"Checking role for user: {user}")  # Отладочное сообщение
+    if not user or not authenticator.check_role(user, 'Manager'):
+        await message.answer("Access denied: you do not have manager rights.")
         return False
     return True
 
 @router.message(Command(commands='create_task'))
-async def create_task_command(message: Message):
+async def create_task_command(message: Message, state: FSMContext):
     with SessionLocal() as db_session:
         db_repository = DatabaseRepository(db_session)
-        if not await manager_role_required(message, db_repository):
+        if not await manager_role_required(message, state, db_repository):
             return
 
-        text = message.text.split()
-        title = text[1] if len(text) > 1 else None
-        description = text[2] if len(text) > 2 else None
-        thumbnail_draft = text[3] if len(text) > 3 else None
-        worker_username = text[4] if len(text) > 4 else None
-        deadline = datetime.datetime.strptime(text[5], '%Y-%m-%d') if len(text) > 5 else None
-        channel_name = text[6] if len(text) > 6 else None
+        args = shlex.split(message.text)
+        if len(args) != 6:
+            await message.answer('Invalid task creation. Please use the format: /create_task "title" "description" username deadline channel_name')
+            return
 
-        if not title or not worker_username or not deadline or not channel_name:
-            await message.answer('Invalid task creation. Please enter task information in the correct format.')
+        title, description, worker_username, deadline_str, channel_name = args[1:]
+
+        try:
+            deadline = datetime.datetime.strptime(deadline_str, '%Y-%m-%d')
+        except ValueError:
+            await message.answer('Invalid date format. Please use YYYY-MM-DD.')
             return
 
         worker = db_repository.get_user_by_username(worker_username)
@@ -43,41 +56,17 @@ async def create_task_command(message: Message):
             await message.answer('Worker or channel not found.')
             return
 
-        task = TasksService(db_repository).create_task(title, description, thumbnail_draft, worker.id, deadline, channel.id)
-        await message.answer(f'Task "{task.title}" has been created and assigned to {worker.username} for channel {channel.name}.')
-
-@router.message(Command(commands='assign_task'))
-async def assign_task_command(message: Message):
-    with SessionLocal() as db_session:
-        db_repository = DatabaseRepository(db_session)
-        if not await manager_role_required(message, db_repository):
-            return
-
-        text = message.text.split()
-        task_id = int(text[1]) if len(text) > 1 else None
-        worker_username = text[2] if len(text) > 2 else None
-
-        if not task_id or not worker_username:
-            await message.answer('Invalid task assignment. Please enter task ID and worker username in the correct format.')
-            return
-
-        worker = db_repository.get_user_by_username(worker_username)
-
-        if not worker:
-            await message.answer('Worker not found.')
-            return
-
-        if not TasksService(db_repository).assign_task(task_id, worker.id):
-            await message.answer('Task assignment failed. Please check task and worker IDs.')
-            return
-
-        await message.answer(f'Task has been assigned to {worker.username}.')
+        status = "pending"  # Статус устанавливается автоматически как "pending"
+        task = TasksService(db_repository).create_task(worker.id, title, description, deadline, status, channel.id)
+        await message.answer(f'Task "{task.title}" has been created and assigned to {worker.username} in channel {channel.name}.')
 
 @router.message(Command(commands='log_expense'))
-async def log_expense_command(message: Message):
+async def log_expense_command(message: Message, state: FSMContext):
+    user_data = await state.get_data()
+    username = user_data.get('username')
     with SessionLocal() as db_session:
         db_repository = DatabaseRepository(db_session)
-        if not await manager_role_required(message, db_repository):
+        if not await manager_role_required(message, state, db_repository):
             return
 
         text = message.text.split()
@@ -95,14 +84,14 @@ async def log_expense_command(message: Message):
             await message.answer('Channel not found.')
             return
 
-        ExpensesService(db_repository).log_expense(message.from_user.id, amount, currency, channel.id)
+        ExpensesService(db_repository).log_expense(username, amount, currency, channel.id)
         await message.answer(f'Expense of {amount} {currency} has been logged for channel {channel.name}.')
 
 @router.message(Command(commands='statistics'))
-async def statistics_command(message: Message):
+async def statistics_command(message: Message, state: FSMContext):
     with SessionLocal() as db_session:
         db_repository = DatabaseRepository(db_session)
-        if not await manager_role_required(message, db_repository):
+        if not await manager_role_required(message, state, db_repository):
             return
 
         stats = StatisticsService(db_repository).get_worker_statistics(message.from_user.id)

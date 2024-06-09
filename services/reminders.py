@@ -1,5 +1,5 @@
 import asyncio
-from aiogram import Bot, Router, F
+from aiogram import Bot, Router
 from database.repository import DatabaseRepository
 from datetime import timedelta
 from database import SessionLocal
@@ -10,7 +10,7 @@ db_session = SessionLocal()
 router = Router()
 
 class RemindersService:
-    def __init__(self, bot: Bot, db_session: db_session):
+    def __init__(self, bot: Bot):
         self.bot = bot
         self.repository = DatabaseRepository(db_session)
 
