@@ -8,7 +8,7 @@ def register_role_handlers(role: str, dp: Dispatcher):
         "Manager": manager.register_handlers,
         "Worker": worker.register_handlers,
         "Preview_maker": preview_maker.register_handlers,
-        "Moderator": moderator.register_handlers  # Добавление обработчика для модератора
+        "Moderator": moderator.register_handlers 
     }
 
     handler_function = role_handlers.get(role)

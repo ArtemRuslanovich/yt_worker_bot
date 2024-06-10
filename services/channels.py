@@ -27,3 +27,6 @@ class ChannelsService:
 
     def get_channel_by_name(self, name):
         return self.db_repository.get_channel_by_name(name)
+
+    def get_all_channels(self):
+        return self.db_repository.get_all_channels()

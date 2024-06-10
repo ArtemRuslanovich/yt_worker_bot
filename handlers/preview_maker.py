@@ -1,127 +1,111 @@
 import datetime
-from aiogram import Dispatcher, Router
-from aiogram.types import Message
+import logging
+import shlex
+from aiogram import Router, types
 from aiogram.filters.command import Command
+from database.models import Task
 from database.repository import DatabaseRepository
-from middlewares.authentication import Authenticator
-from services.preview import PreviewsService
-from services.statistics import StatisticsService
 from database import SessionLocal
 from aiogram.fsm.context import FSMContext
-import logging
+from aiogram.fsm.state import State, StatesGroup
+from middlewares.authentication import Authenticator
+from services.tasks import TasksService
 
 router = Router()
 
-async def preview_maker_role_required(message: Message, state: FSMContext, db_repository):
+class PreviewTaskAction(StatesGroup):
+    waiting_for_task_id = State()
+
+async def preview_maker_role_required(message: types.Message, state: FSMContext, db_repository):
     user_data = await state.get_data()
-    logging.info(f"State user data: {user_data}")  # Отладочное сообщение
+    logging.info(f"State user data: {user_data}")
     username = user_data.get('username')
     role = user_data.get('role')
     authenticator = Authenticator(db_repository)
 
     user = db_repository.get_user_by_username(username)
 
-    logging.info(f"Checking role for user: {user}")  # Отладочное сообщение
+    logging.info(f"Checking role for user: {user}")
     if not user or not authenticator.check_role(user, 'PreviewMaker'):
         await message.answer("Access denied: you do not have preview maker rights.")
         return False
     return True
 
-@router.message(Command(commands='submit_preview'))
-async def submit_preview_command(message: Message, state: FSMContext):
+@router.message(Command(commands='accept_task'))
+async def accept_task_command(message: types.Message, state: FSMContext):
     with SessionLocal() as db_session:
         db_repository = DatabaseRepository(db_session)
         if not await preview_maker_role_required(message, state, db_repository):
             return
 
-        text = message.text.split()
-        preview_id = int(text[1]) if len(text) > 1 else None
-        link = text[2] if len(text) > 2 else None
+        await message.answer("Введите ID задачи для принятия:")
+        await state.set_state(PreviewTaskAction.waiting_for_task_id)
 
-        if not preview_id or not link:
-            await message.answer('Invalid preview submission. Please enter the preview ID and link correctly.')
+@router.message(PreviewTaskAction.waiting_for_task_id)
+async def process_accept_task_id(message: types.Message, state: FSMContext):
+    task_id = message.text
+
+    with SessionLocal() as db_session:
+        db_repository = DatabaseRepository(db_session)
+        task = db_repository.get_item_by_id(Task, task_id)
+
+        if not task or task.status != "pending":
+            await message.answer('Задача не найдена или не может быть принята.')
             return
 
-        preview = PreviewsService(db_repository).get_preview_by_id(preview_id)
+        task.status = "in_progress"
+        db_session.commit()
 
-        if not preview or preview.preview_maker_id != message.from_user.id or preview.status == 'completed':
-            await message.answer('Invalid preview submission. Preview either does not exist, is completed, or does not belong to you.')
+        await message.answer(f'Задача с ID {task_id} принята в работу.')
+        await state.clear()
+
+@router.message(Command(commands='submit_task'))
+async def submit_task_command(message: types.Message, state: FSMContext):
+    with SessionLocal() as db_session:
+        db_repository = DatabaseRepository(db_session)
+        if not await preview_maker_role_required(message, state, db_repository):
+            return
+        await message.answer("Введите ID задачи для сдачи:")
+        await state.set_state(PreviewTaskAction.waiting_for_task_id)
+
+@router.message(PreviewTaskAction.waiting_for_task_id)
+async def process_submit_task_id(message: types.Message, state: FSMContext):
+    task_id = message.text
+
+    with SessionLocal() as db_session:
+        db_repository = DatabaseRepository(db_session)
+        task = db_repository.get_item_by_id(Task, task_id)
+
+        if not task or task.status != "in_progress":
+            await message.answer('Задача не найдена или не может быть сдана.')
             return
 
-        PreviewsService(db_repository).update_preview(preview_id, 'completed', link)
-        await message.answer(f'Preview for video "{preview.video.title}" has been submitted and is pending review.')
+        task.status = "submitted"
+        task.actual_completion_date = datetime.datetime.now()
+        db_session.commit()
 
-@router.message(Command(commands='view_previews'))
-async def view_previews_command(message: Message, state: FSMContext):
+        await message.answer(f'Задача с ID {task_id} сдана на проверку.')
+        await state.clear()
+
+@router.message(Command(commands='view_tasks'))
+async def view_tasks_command(message: types.Message, state: FSMContext):
     with SessionLocal() as db_session:
         db_repository = DatabaseRepository(db_session)
         if not await preview_maker_role_required(message, state, db_repository):
             return
 
-        previews = PreviewsService(db_repository).get_previews_by_preview_maker_id(message.from_user.id)
+        user_data = await state.get_data()
+        username = user_data.get('username')
+        preview_maker = db_repository.get_user_by_username(username)
 
-        if not previews:
-            await message.answer('You do not have any previews assigned to you.')
+        if not preview_maker:
+            await message.answer('Работник не найден.')
             return
 
-        preview_messages = [f'{i+1}. {preview.video.title} (Deadline: {preview.deadline.strftime("%Y-%m-%d")})' for i, preview in enumerate(previews)]
-        await message.answer('\n'.join(preview_messages))
+        tasks_service = TasksService(db_repository)
+        tasks = tasks_service.get_tasks_by_user_id(preview_maker.id)
 
-@router.message(Command(commands='statistics'))
-async def statistics_command(message: Message, state: FSMContext):
-    with SessionLocal() as db_session:
-        db_repository = DatabaseRepository(db_session)
-        if not await preview_maker_role_required(message, state, db_repository):
-            return
+        response = "Ваши задачи:\n\n"
+        response += "\n".join([f"ID: {task.id}, Title: {task.title}, Status: {task.status}" for task in tasks])
 
-        total_previews = PreviewsService(db_repository).get_preview_maker_statistics(message.from_user.id)
-        total_payment = PreviewsService(db_repository).get_preview_maker_payment(message.from_user.id)
-
-        await message.answer(
-            f'You have completed {total_previews} previews.\n'
-            f'Your total payment for completed previews is {total_payment} USD.'
-        )
-
-@router.message(Command(commands='get_technical_specification'))
-async def get_technical_specification_command(message: Message, state: FSMContext):
-    with SessionLocal() as db_session:
-        db_repository = DatabaseRepository(db_session)
-        if not await preview_maker_role_required(message, state, db_repository):
-            return
-
-        args = message.text.split()
-        if len(args) != 2:
-            await message.answer("Usage: /get_technical_specification <preview_id>")
-            return
-
-        preview_id = int(args[1])
-        technical_specification = PreviewsService(db_repository).get_technical_specification(preview_id)
-
-        if not technical_specification:
-            await message.answer("Technical specification not found or you do not have access to it.")
-            return
-
-        await message.answer(f"Technical Specification for Preview ID {preview_id}: {technical_specification}")
-
-@router.message(Command(commands='set_preview_payment'))
-async def set_preview_payment_command(message: Message, state: FSMContext):
-    with SessionLocal() as db_session:
-        db_repository = DatabaseRepository(db_session)
-        if not await preview_maker_role_required(message, state, db_repository):
-            return
-
-        args = message.text.split()
-        if len(args) != 3:
-            await message.answer("Usage: /set_preview_payment <preview_id> <amount>")
-            return
-
-        preview_id, amount = int(args[1]), float(args[2])
-        result = PreviewsService(db_repository).set_preview_payment(preview_id, amount)
-
-        if result:
-            await message.answer(f"Payment for preview ID {preview_id} set to ${amount}.")
-        else:
-            await message.answer("Failed to set payment. Check preview ID and your permissions.")
-
-def register_handlers(dp: Dispatcher):
-    dp.include_router(router)
+        await message.answer(response)

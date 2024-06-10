@@ -16,7 +16,7 @@ class User(Base):
     role_id = Column(Integer, ForeignKey('roles.id'))
     username = Column(String, unique=True)
     password = Column(String)
-
+    salary = Column(Float, default=0.0)
     role = relationship('Role')
 
 class Role(Base):
@@ -103,7 +103,6 @@ class Preview(Base):
     status = Column(String)
     link = Column(String)
     payment = Column(Float)
-    technical_description = Column(String, nullable=True)  # Добавлено для хранения ТЗ
 
     video = relationship('Video')
     preview_maker = relationship('User')

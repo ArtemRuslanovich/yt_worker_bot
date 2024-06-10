@@ -1,3 +1,4 @@
+import logging
 from aiogram import Dispatcher, Router, types
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
@@ -41,18 +42,18 @@ async def enter_password(message: types.Message, state: FSMContext):
     password = message.text
     role = user_data.get('chosen_role')
 
-    print(f"Username: {username}, Role: {role}")  # Логирование для отладки
+    logging.info(f"Username: {username}, Role: {role}")  # Логирование для отладки
 
-    db_session = SessionLocal()
-    db_repository = repository.DatabaseRepository(db_session)
-    authenticator = Authenticator(db_repository)
-    authenticated, message_text = authenticator.authenticate_user(username, password, role)
-    if authenticated:
-        await message.answer(f"Authenticated as {role}.")
-        await state.update_data(authenticated=True)  # Сохранение состояния аутентификации
-    else:
-        await message.answer("Authentication failed.")
-        await state.update_data(authenticated=False)  # Сохранение состояния аутентификации
+    with SessionLocal() as db_session:
+        db_repository = repository.DatabaseRepository(db_session)
+        authenticator = Authenticator(db_repository)
+        authenticated, message_text = authenticator.authenticate_user(username, password, role)
+        if authenticated:
+            await message.answer(f"Authenticated as {role}.")
+            await state.update_data(authenticated=True)  # Сохранение состояния аутентификации
+        else:
+            await message.answer("Authentication failed.")
+            await state.update_data(authenticated=False)  # Сохранение состояния аутентификации
 
     await state.set_state(None)  # Завершение состояния
 

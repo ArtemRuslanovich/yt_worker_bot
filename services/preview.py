@@ -16,7 +16,3 @@ class PreviewsService:
     def get_preview_maker_statistics(self, preview_maker_id):
         previews = self.db_repository.get_previews_by_preview_maker_id(preview_maker_id)
         return len(previews)
-
-    def get_preview_maker_payment(self, preview_maker_id):
-        previews = self.db_repository.get_previews_by_preview_maker_id(preview_maker_id)
-        return sum(preview.payment for preview in previews)

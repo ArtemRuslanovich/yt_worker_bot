@@ -1,3 +1,4 @@
+from database.models import Task
 from database.repository import DatabaseRepository
 
 
@@ -5,8 +6,19 @@ class TasksService:
     def __init__(self, db_repository: DatabaseRepository):
         self.db_repository = db_repository
 
-    def create_task(self, user_id, title, description, deadline, status, channel_id):
-        return self.db_repository.create_task(user_id, title, description, deadline, status, channel_id)
+    def create_task(self, worker_id, title, description, theme, deadline, status, channel_id):
+        task = Task(
+            user_id=worker_id,
+            title=title,
+            description=description,
+            theme=theme,
+            deadline=deadline,
+            status=status,
+            channel_id=channel_id
+        )
+        self.db_repository.session.add(task)
+        self.db_repository.session.commit()
+        return task
 
     def get_task_by_id(self, task_id):
         return self.db_repository.get_task_by_id(task_id)
@@ -25,3 +37,9 @@ class TasksService:
 
     def get_overdue_tasks(self):
         return self.db_repository.get_overdue_tasks()
+    
+    def get_tasks_by_user_id(self, user_id):
+        return self.db_repository.session.query(Task).filter_by(user_id=user_id).all()
+    
+    def get_tasks_by_status(self, status):
+        return self.db_repository.session.query(Task).filter_by(status=status).all()
