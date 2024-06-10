@@ -1,15 +1,19 @@
-from asyncio import Task
 import datetime
-import shlex
-import logging
 from aiogram import Dispatcher, Router, types
-from aiogram.filters.command import Command
 from database.repository import DatabaseRepository
-from middlewares.authentication import Authenticator
-from services.tasks import TasksService
 from database import SessionLocal
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
+from middlewares.authentication import Authenticator
+from services.tasks import TasksService
+from enum import Enum
+from aiogram.filters.command import Command
+
+class TaskStatus(Enum):
+    AWAITING = "в ожидании выполнения"
+    IN_PROGRESS = "в процессе выполнения"
+    UNDER_REVIEW = "на проверке"
+    COMPLETED = "выполнено"
 
 router = Router()
 
@@ -21,16 +25,17 @@ class TaskCreation(StatesGroup):
     waiting_for_deadline = State()
     waiting_for_channel_name = State()
 
+class TaskChecking(StatesGroup):
+    waiting_for_task_id = State()
+    waiting_for_new_status = State()
+
 async def manager_role_required(message: types.Message, state: FSMContext, db_repository):
     user_data = await state.get_data()
-    logging.info(f"State user data: {user_data}")
     username = user_data.get('username')
     role = user_data.get('role')
     authenticator = Authenticator(db_repository)
 
     user = db_repository.get_user_by_username(username)
-
-    logging.info(f"Checking role for user: {user}")
     if not user or not authenticator.check_role(user, 'Manager'):
         await message.answer("Access denied: you do not have manager rights.")
         return False
@@ -42,7 +47,6 @@ async def create_task_command(message: types.Message, state: FSMContext):
         db_repository = DatabaseRepository(db_session)
         if not await manager_role_required(message, state, db_repository):
             return
-
         await message.answer("Введите название задачи:")
         await state.set_state(TaskCreation.waiting_for_title)
 
@@ -82,36 +86,26 @@ async def process_deadline(message: types.Message, state: FSMContext):
 
 @router.message(TaskCreation.waiting_for_channel_name)
 async def process_channel_name(message: types.Message, state: FSMContext):
-    data = await state.get_data()
     channel_name = message.text
-    worker_username = data['worker_username']
-    
+    data = await state.get_data()
     with SessionLocal() as db_session:
         db_repository = DatabaseRepository(db_session)
-        worker = db_repository.get_user_by_username(worker_username)
         channel = db_repository.get_channel_by_name(channel_name)
-        
-        if not worker or not channel:
-            await message.answer('Пользователь или канал не найдены.')
+        if not channel:
+            await message.answer('Канал не найден.')
             return
-        
-        task_service = TasksService(db_repository)
-        task = task_service.create_task(
-            worker_id=worker.id,
+
+        task = db_repository.create_task(
             title=data['title'],
             description=data['description'],
             theme=data['theme'],
+            worker_username=data['worker_username'],
             deadline=data['deadline'],
-            status="pending",
+            status=TaskStatus.AWAITING.value,
             channel_id=channel.id
         )
-        
-        await message.answer(f'Задача "{task.title}" с темой "{task.theme}" создана и назначена пользователю {worker.username} в канале {channel.name}.')
+        await message.answer(f'Задача "{task.title}" создана и назначена.')
         await state.clear()
-
-class TaskChecking(StatesGroup):
-    waiting_for_task_id = State()
-    waiting_for_new_status = State()
 
 @router.message(Command(commands='check_task'))
 async def check_task_command(message: types.Message, state: FSMContext):
@@ -120,25 +114,31 @@ async def check_task_command(message: types.Message, state: FSMContext):
         if not await manager_role_required(message, state, db_repository):
             return
 
-        await message.answer("Введите ID задачи:")
+        tasks = db_repository.get_all_tasks()
+        response = "\n".join([f"ID: {task.id}, Название: {task.title}, Статус: {task.status}" for task in tasks])
+        await message.answer(response)
+        await message.answer("Введите ID задачи для изменения статуса:")
         await state.set_state(TaskChecking.waiting_for_task_id)
 
 @router.message(TaskChecking.waiting_for_task_id)
 async def process_task_id(message: types.Message, state: FSMContext):
-    await state.update_data(task_id=message.text)
-    await message.answer("Введите новый статус задачи:")
+    task_id = message.text
+    await state.update_data(task_id=task_id)
+    await message.answer("Введите новый статус задачи (ожидание выполнения, в процессе выполнения, на проверке, выполнено):")
     await state.set_state(TaskChecking.waiting_for_new_status)
 
 @router.message(TaskChecking.waiting_for_new_status)
 async def process_new_status(message: types.Message, state: FSMContext):
     new_status = message.text
+    if new_status not in [status.value for status in TaskStatus]:
+        await message.answer("Недопустимый статус. Допустимые статусы: ожидание выполнения, в процессе выполнения, на проверке, выполнено.")
+        return
+
     data = await state.get_data()
     task_id = data['task_id']
-
     with SessionLocal() as db_session:
         db_repository = DatabaseRepository(db_session)
-        task = db_repository.get_item_by_id(Task, task_id)
-        
+        task = db_repository.get_item_by_id(task_id)
         if not task:
             await message.answer('Задача не найдена.')
             return
@@ -192,7 +192,7 @@ async def set_salary_command(message: types.Message, state: FSMContext):
 async def process_worker_username_salary(message: types.Message, state: FSMContext):
     await state.update_data(worker_username=message.text)
     await message.answer("Введите сумму зарплаты:")
-    await SalarySetting.waiting_for_amount.set()
+    await state.set_state(SalarySetting.waiting_for_amount)
 
 @router.message(SalarySetting.waiting_for_amount)
 async def process_salary_amount(message: types.Message, state: FSMContext):

@@ -9,7 +9,6 @@ from handlers.admin import router as admin_router
 from handlers.manager import router as manager_router
 from handlers.worker import router as worker_router
 from handlers.preview_maker import router as preview_maker_router
-from handlers.moderator import router as moderator_router
 
 bot = Bot(token=TOKEN)
 storage = MemoryStorage()
@@ -21,7 +20,6 @@ def register_all_handlers():
     dp.include_router(manager_router)
     dp.include_router(worker_router)
     dp.include_router(preview_maker_router)
-    dp.include_router(moderator_router)
 
 async def on_startup():
     await bot.set_my_commands([

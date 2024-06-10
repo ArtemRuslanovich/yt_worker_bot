@@ -1,31 +1,36 @@
 import datetime
 import logging
 import shlex
-from aiogram import Router, types
+from aiogram import Dispatcher, Router, types
 from aiogram.filters.command import Command
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
 from database.models import Task
 from database.repository import DatabaseRepository
 from database import SessionLocal
-from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
 from middlewares.authentication import Authenticator
 from services.tasks import TasksService
+from enum import Enum
+
+class TaskStatus(Enum):
+    AWAITING = "в ожидании выполнения"
+    IN_PROGRESS = "в процессе выполнения"
+    UNDER_REVIEW = "на проверке"
+    COMPLETED = "выполнено"
 
 router = Router()
 
 class PreviewTaskAction(StatesGroup):
-    waiting_for_task_id = State()
+    accept_task_id = State()
+    submit_task_id = State()
 
 async def preview_maker_role_required(message: types.Message, state: FSMContext, db_repository):
     user_data = await state.get_data()
-    logging.info(f"State user data: {user_data}")
     username = user_data.get('username')
     role = user_data.get('role')
     authenticator = Authenticator(db_repository)
 
     user = db_repository.get_user_by_username(username)
-
-    logging.info(f"Checking role for user: {user}")
     if not user or not authenticator.check_role(user, 'PreviewMaker'):
         await message.answer("Access denied: you do not have preview maker rights.")
         return False
@@ -39,9 +44,9 @@ async def accept_task_command(message: types.Message, state: FSMContext):
             return
 
         await message.answer("Введите ID задачи для принятия:")
-        await state.set_state(PreviewTaskAction.waiting_for_task_id)
+        await state.set_state(PreviewTaskAction.accept_task_id)
 
-@router.message(PreviewTaskAction.waiting_for_task_id)
+@router.message(PreviewTaskAction.accept_task_id)
 async def process_accept_task_id(message: types.Message, state: FSMContext):
     task_id = message.text
 
@@ -49,11 +54,11 @@ async def process_accept_task_id(message: types.Message, state: FSMContext):
         db_repository = DatabaseRepository(db_session)
         task = db_repository.get_item_by_id(Task, task_id)
 
-        if not task or task.status != "pending":
+        if not task or task.status != TaskStatus.AWAITING.value:
             await message.answer('Задача не найдена или не может быть принята.')
             return
 
-        task.status = "in_progress"
+        task.status = TaskStatus.IN_PROGRESS.value
         db_session.commit()
 
         await message.answer(f'Задача с ID {task_id} принята в работу.')
@@ -66,9 +71,9 @@ async def submit_task_command(message: types.Message, state: FSMContext):
         if not await preview_maker_role_required(message, state, db_repository):
             return
         await message.answer("Введите ID задачи для сдачи:")
-        await state.set_state(PreviewTaskAction.waiting_for_task_id)
+        await state.set_state(PreviewTaskAction.submit_task_id)
 
-@router.message(PreviewTaskAction.waiting_for_task_id)
+@router.message(PreviewTaskAction.submit_task_id)
 async def process_submit_task_id(message: types.Message, state: FSMContext):
     task_id = message.text
 
@@ -76,11 +81,11 @@ async def process_submit_task_id(message: types.Message, state: FSMContext):
         db_repository = DatabaseRepository(db_session)
         task = db_repository.get_item_by_id(Task, task_id)
 
-        if not task or task.status != "in_progress":
+        if not task or task.status != TaskStatus.IN_PROGRESS.value:
             await message.answer('Задача не найдена или не может быть сдана.')
             return
 
-        task.status = "submitted"
+        task.status = TaskStatus.UNDER_REVIEW.value
         task.actual_completion_date = datetime.datetime.now()
         db_session.commit()
 
@@ -109,3 +114,6 @@ async def view_tasks_command(message: types.Message, state: FSMContext):
         response += "\n".join([f"ID: {task.id}, Title: {task.title}, Status: {task.status}" for task in tasks])
 
         await message.answer(response)
+
+def register_handlers(dp: Dispatcher):
+    dp.include_router(router)

@@ -105,3 +105,16 @@ class DatabaseRepository:
 
     def get_all_users_by_role(self, role_name):
         return self.session.query(User).join(Role).filter(Role.name == role_name).all()
+    
+    def update_task_status(self, task_id, new_status):
+        # Получаем задачу по ID
+        task = self.session.query(Task).filter(Task.id == task_id).first()
+        if task:
+            # Обновляем статус
+            task.status = new_status
+            self.session.commit()
+            return True
+        return False
+    
+    def get_all_tasks(self):
+        return self.session.query(Task).all()
