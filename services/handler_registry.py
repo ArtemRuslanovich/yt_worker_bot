@@ -2,6 +2,7 @@ import logging
 from aiogram import Dispatcher
 from handlers import admin, manager, worker, preview_maker  # Убедитесь, что импортирован модуль модератора
 
+
 def register_role_handlers(role: str, dp: Dispatcher):
     role_handlers = {
         "Admin": admin.register_handlers,

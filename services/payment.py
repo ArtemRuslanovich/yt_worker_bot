@@ -1,5 +1,6 @@
 from database import repository
 
+
 class PaymentService:
     def __init__(self):
         pass
@@ -26,7 +27,7 @@ class PaymentService:
     def get_total_payments(self, channel_id):
         payments = repository.get_payments_by_channel_id(channel_id)
         return sum(payment.amount for payment in payments)
-    
+
     def calculate_bonus(self, base_amount, bonus_percentage):
         return base_amount * (bonus_percentage / 100.0)
 

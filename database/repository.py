@@ -1,6 +1,7 @@
 import datetime
 from sqlalchemy.orm import Session
-from .models import Payment, Preview, User, Role, Task, Expense, Channel, Video
+from .models import User, Role, Task, Channel
+
 
 class DatabaseRepository:
     def __init__(self, session: Session):
@@ -48,7 +49,8 @@ class DatabaseRepository:
 
     def get_items_by_month(self, model, month):
         start_date = datetime.datetime(datetime.datetime.now().year, month, 1)
-        end_date = datetime.datetime(datetime.datetime.now().year, month + 1, 1) if month < 12 else datetime.datetime(datetime.datetime.now().year + 1, 1, 1)
+        end_date = datetime.datetime(datetime.datetime.now().year, month + 1, 1) if month < 12 else datetime.datetime(
+            datetime.datetime.now().year + 1, 1, 1)
         return self.session.query(model).filter(model.upload_date >= start_date, model.upload_date < end_date).all()
 
     def set_worker_salary(self, worker_id, salary):
@@ -58,13 +60,13 @@ class DatabaseRepository:
             self.session.commit()
             return True
         return False
-    
+
     def get_all_channels(self):
         return self.session.query(Channel).all()
 
     def get_all_users_by_role(self, role_name):
         return self.session.query(User).join(Role).filter(Role.name == role_name).all()
-    
+
     def get_item_by_id(self, model, item_id):
         return self.session.query(model).filter_by(id=item_id).first()
 
@@ -85,6 +87,7 @@ class DatabaseRepository:
 
     def get_all_users_by_role(self, role_name):
         return self.session.query(User).join(Role).filter(Role.name == role_name).all()
+
     def get_item_by_id(self, model, item_id):
         return self.session.query(model).filter_by(id=item_id).first()
 
@@ -105,7 +108,7 @@ class DatabaseRepository:
 
     def get_all_users_by_role(self, role_name):
         return self.session.query(User).join(Role).filter(Role.name == role_name).all()
-    
+
     def update_task_status(self, task_id, new_status):
         # Получаем задачу по ID
         task = self.session.query(Task).filter(Task.id == task_id).first()
@@ -115,6 +118,20 @@ class DatabaseRepository:
             self.session.commit()
             return True
         return False
-    
+
     def get_all_tasks(self):
         return self.session.query(Task).all()
+
+    def create_task(self, title, description, theme, worker_username, deadline, status, channel_id):
+        task = Task(
+            title=title,
+            description=description,
+            theme=theme,
+            worker_username=worker_username,
+            deadline=deadline,
+            status=status,
+            channel_id=channel_id
+        )
+        self.session.add(task)
+        self.session.commit()
+        return task

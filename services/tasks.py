@@ -6,12 +6,12 @@ class TasksService:
     def __init__(self, db_repository: DatabaseRepository):
         self.db_repository = db_repository
 
-    def create_task(self, worker_id, title, description, theme, deadline, status, channel_id):
+    def create_task(self, title, description, theme, worker_username, deadline, status, channel_id):
         task = Task(
-            user_id=worker_id,
             title=title,
             description=description,
             theme=theme,
+            worker_username=worker_username,
             deadline=deadline,
             status=status,
             channel_id=channel_id

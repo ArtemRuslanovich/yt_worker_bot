@@ -8,10 +8,9 @@ from database.repository import DatabaseRepository
 from database import SessionLocal
 from middlewares.authentication import Authenticator
 from services.tasks import TasksService
-import datetime
-import logging
 
 router = Router()
+
 
 class TaskStatus(Enum):
     AWAITING = "в ожидании выполнения"
@@ -19,9 +18,11 @@ class TaskStatus(Enum):
     UNDER_REVIEW = "на проверке"
     COMPLETED = "выполнено"
 
+
 class TaskAction(StatesGroup):
     accept_task_id = State()
     submit_task_id = State()
+
 
 async def worker_role_required(message: types.Message, state: FSMContext, db_repository):
     user_data = await state.get_data()
@@ -35,12 +36,14 @@ async def worker_role_required(message: types.Message, state: FSMContext, db_rep
         return False
     return True
 
+
 @router.message(Command(commands='accept_task'))
 async def accept_task_command(message: types.Message, state: FSMContext):
     if not await worker_role_required(message, state, None):
         return
     await message.answer("Введите ID задачи для принятия:")
     await state.set_state(TaskAction.accept_task_id)
+
 
 @router.message(TaskAction.accept_task_id)
 async def process_accept_task_id(message: types.Message, state: FSMContext):
@@ -56,12 +59,14 @@ async def process_accept_task_id(message: types.Message, state: FSMContext):
             await message.answer('Задача не найдена или уже в работе.')
         await state.clear()
 
+
 @router.message(Command(commands='submit_task'))
 async def submit_task_command(message: types.Message, state: FSMContext):
     if not await worker_role_required(message, state, None):
         return
     await message.answer("Введите ID задачи для сдачи:")
     await state.set_state(TaskAction.submit_task_id)
+
 
 @router.message(TaskAction.submit_task_id)
 async def process_submit_task_id(message: types.Message, state: FSMContext):
@@ -76,6 +81,7 @@ async def process_submit_task_id(message: types.Message, state: FSMContext):
         else:
             await message.answer('Задача не найдена или не в процессе выполнения.')
         await state.clear()
+
 
 @router.message(Command(commands='view_tasks'))
 async def view_tasks_command(message: types.Message, state: FSMContext):
@@ -99,3 +105,7 @@ async def view_tasks_command(message: types.Message, state: FSMContext):
         response += "\n".join([f"ID: {task.id}, Title: {task.title}, Status: {task.status}" for task in tasks])
 
         await message.answer(response)
+
+
+def register_handlers(dp: Dispatcher):
+    dp.include_router(router)

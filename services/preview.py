@@ -1,5 +1,6 @@
 from database.repository import DatabaseRepository
 
+
 class PreviewsService:
     def __init__(self, db_repository: DatabaseRepository):
         self.db_repository = db_repository

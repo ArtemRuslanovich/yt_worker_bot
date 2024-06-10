@@ -9,6 +9,7 @@ db_session = SessionLocal()
 # Define the router outside the class
 router = Router()
 
+
 class RemindersService:
     def __init__(self, bot: Bot):
         self.bot = bot
@@ -35,6 +36,7 @@ class RemindersService:
     async def start(bot: Bot):
         service = RemindersService(bot)
         await service.schedule_reminders()
+
 
 # Export the router to be included in the main bot script
 RemindersService.router = router

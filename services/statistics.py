@@ -1,5 +1,6 @@
 from database.repository import DatabaseRepository
 
+
 class StatisticsService:
     def __init__(self, db_repository: DatabaseRepository):
         self.db_repository = db_repository
@@ -25,7 +26,7 @@ class StatisticsService:
         videos = self.db_repository.get_videos_by_channel_id(channel_id)
         previews = self.db_repository.get_previews_by_channel_id(channel_id)
         return len(videos), len(previews)
-    
+
     def get_all_channels_statistics(self):
         channels = self.db_repository.get_all_channels()
         total_expenses = 0
@@ -46,7 +47,7 @@ class StatisticsService:
             "total_videos": total_videos,
             "total_previews": total_previews
         }
-    
+
     def get_statistics(self):
         statistics = {
             'channels': [],

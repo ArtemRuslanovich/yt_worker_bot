@@ -1,6 +1,4 @@
 import datetime
-import logging
-import shlex
 from aiogram import Dispatcher, Router, types
 from aiogram.filters.command import Command
 from aiogram.fsm.context import FSMContext
@@ -12,17 +10,21 @@ from middlewares.authentication import Authenticator
 from services.tasks import TasksService
 from enum import Enum
 
+
 class TaskStatus(Enum):
     AWAITING = "в ожидании выполнения"
     IN_PROGRESS = "в процессе выполнения"
     UNDER_REVIEW = "на проверке"
     COMPLETED = "выполнено"
 
+
 router = Router()
+
 
 class PreviewTaskAction(StatesGroup):
     accept_task_id = State()
     submit_task_id = State()
+
 
 async def preview_maker_role_required(message: types.Message, state: FSMContext, db_repository):
     user_data = await state.get_data()
@@ -36,6 +38,7 @@ async def preview_maker_role_required(message: types.Message, state: FSMContext,
         return False
     return True
 
+
 @router.message(Command(commands='accept_task'))
 async def accept_task_command(message: types.Message, state: FSMContext):
     with SessionLocal() as db_session:
@@ -45,6 +48,7 @@ async def accept_task_command(message: types.Message, state: FSMContext):
 
         await message.answer("Введите ID задачи для принятия:")
         await state.set_state(PreviewTaskAction.accept_task_id)
+
 
 @router.message(PreviewTaskAction.accept_task_id)
 async def process_accept_task_id(message: types.Message, state: FSMContext):
@@ -64,6 +68,7 @@ async def process_accept_task_id(message: types.Message, state: FSMContext):
         await message.answer(f'Задача с ID {task_id} принята в работу.')
         await state.clear()
 
+
 @router.message(Command(commands='submit_task'))
 async def submit_task_command(message: types.Message, state: FSMContext):
     with SessionLocal() as db_session:
@@ -72,6 +77,7 @@ async def submit_task_command(message: types.Message, state: FSMContext):
             return
         await message.answer("Введите ID задачи для сдачи:")
         await state.set_state(PreviewTaskAction.submit_task_id)
+
 
 @router.message(PreviewTaskAction.submit_task_id)
 async def process_submit_task_id(message: types.Message, state: FSMContext):
@@ -91,6 +97,7 @@ async def process_submit_task_id(message: types.Message, state: FSMContext):
 
         await message.answer(f'Задача с ID {task_id} сдана на проверку.')
         await state.clear()
+
 
 @router.message(Command(commands='view_tasks'))
 async def view_tasks_command(message: types.Message, state: FSMContext):
@@ -114,6 +121,7 @@ async def view_tasks_command(message: types.Message, state: FSMContext):
         response += "\n".join([f"ID: {task.id}, Title: {task.title}, Status: {task.status}" for task in tasks])
 
         await message.answer(response)
+
 
 def register_handlers(dp: Dispatcher):
     dp.include_router(router)

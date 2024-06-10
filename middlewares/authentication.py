@@ -1,5 +1,6 @@
 from database import repository
 
+
 class Authenticator:
     def __init__(self, db_repository: repository.DatabaseRepository):
         self.db_repository = db_repository
@@ -23,5 +24,3 @@ class Authenticator:
             return True
         else:
             return False
-
-

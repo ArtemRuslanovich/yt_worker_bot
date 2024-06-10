@@ -9,19 +9,23 @@ from middlewares.authentication import Authenticator
 
 router = Router()
 
+
 class AuthStates(StatesGroup):
     waiting_for_role = State()
     waiting_for_username = State()
     waiting_for_password = State()
 
+
 @router.message(Command(commands='start'))
 async def cmd_start(message: types.Message, state: FSMContext):
     role_keyboard = ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text="Admin")], [KeyboardButton(text="Manager")], [KeyboardButton(text="Worker")], [KeyboardButton(text="Preview_maker")]],
+        keyboard=[[KeyboardButton(text="Admin")], [KeyboardButton(text="Manager")], [KeyboardButton(text="Worker")],
+                  [KeyboardButton(text="Preview_maker")]],
         resize_keyboard=True,
     )
     await message.answer("Welcome to our bot! Choose your role:", reply_markup=role_keyboard)
     await state.set_state(AuthStates.waiting_for_role)
+
 
 @router.message(AuthStates.waiting_for_role)
 async def choose_role(message: types.Message, state: FSMContext):
@@ -29,11 +33,13 @@ async def choose_role(message: types.Message, state: FSMContext):
     await message.answer("Enter your username:")
     await state.set_state(AuthStates.waiting_for_username)
 
+
 @router.message(AuthStates.waiting_for_username)
 async def enter_username(message: types.Message, state: FSMContext):
     await state.update_data(username=message.text)
     await message.answer("Enter your password:")
     await state.set_state(AuthStates.waiting_for_password)
+
 
 @router.message(AuthStates.waiting_for_password)
 async def enter_password(message: types.Message, state: FSMContext):
@@ -56,6 +62,7 @@ async def enter_password(message: types.Message, state: FSMContext):
             await state.update_data(authenticated=False)  # Сохранение состояния аутентификации
 
     await state.set_state(None)  # Завершение состояния
+
 
 def register_handlers(dp: Dispatcher):
     dp.include_router(router)

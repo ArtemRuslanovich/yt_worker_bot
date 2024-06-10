@@ -11,8 +11,10 @@ from services.channels import ChannelsService
 
 router = Router()
 
+
 class ChannelCreation(StatesGroup):
     waiting_for_name = State()
+
 
 async def admin_role_required(message: types.Message, state: FSMContext, db_repository):
     user_data = await state.get_data()
@@ -28,6 +30,7 @@ async def admin_role_required(message: types.Message, state: FSMContext, db_repo
         await message.answer("Access denied: you do not have admin rights.")
         return False
     return True
+
 
 @router.message(Command(commands='view_statistics'))
 async def view_statistics_command(message: types.Message, state: FSMContext):
@@ -45,7 +48,7 @@ async def view_statistics_command(message: types.Message, state: FSMContext):
             response += f"Расходы: {channel_stats['expenses']}\n"
             response += f"Зарплаты: {channel_stats['salaries']}\n"
             response += "\n"
-        
+
         for worker_stats in statistics['workers']:
             response += f"Работник: {worker_stats['username']}\n"
             response += f"Расходы: {worker_stats['expenses']}\n"
@@ -53,6 +56,7 @@ async def view_statistics_command(message: types.Message, state: FSMContext):
             response += "\n"
 
         await message.answer(response)
+
 
 @router.message(Command(commands='create_channel'))
 async def create_channel_command(message: types.Message, state: FSMContext):
@@ -63,6 +67,7 @@ async def create_channel_command(message: types.Message, state: FSMContext):
 
         await message.answer("Введите название канала:")
         await state.set_state(ChannelCreation.waiting_for_name)
+
 
 @router.message(ChannelCreation.waiting_for_name)
 async def process_channel_name(message: types.Message, state: FSMContext):
@@ -79,6 +84,7 @@ async def process_channel_name(message: types.Message, state: FSMContext):
         await message.answer(f"Канал '{new_channel.name}' создан.")
         await state.clear()
 
+
 @router.message(Command(commands='view_channels'))
 async def view_channels_command(message: types.Message, state: FSMContext):
     with SessionLocal() as db_session:
@@ -94,6 +100,7 @@ async def view_channels_command(message: types.Message, state: FSMContext):
             response += f"ID: {channel.id}, Название: {channel.name}\n"
 
         await message.answer(response)
+
 
 def register_handlers(dp: Dispatcher):
     dp.include_router(router)
