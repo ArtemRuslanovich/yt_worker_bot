@@ -13,7 +13,7 @@ from handlers.preview_maker import router as preview_maker_router
 bot = Bot(token=TOKEN)
 storage = MemoryStorage()
 dp = Dispatcher(bot=bot, storage=storage)
-
+#
 def register_all_handlers():
     dp.include_router(start_router)
     dp.include_router(admin_router)

@@ -6,10 +6,10 @@ from aiogram.fsm.state import State, StatesGroup
 from database.models import Task
 from database.repository import DatabaseRepository
 from database import SessionLocal
+from keyboards.preview_maker_buttons import get_preview_maker_buttons
 from middlewares.authentication import Authenticator
 from services.tasks import TasksService
 from enum import Enum
-
 
 class TaskStatus(Enum):
     AWAITING = "в ожидании выполнения"
@@ -17,14 +17,11 @@ class TaskStatus(Enum):
     UNDER_REVIEW = "на проверке"
     COMPLETED = "выполнено"
 
-
 router = Router()
-
 
 class PreviewTaskAction(StatesGroup):
     accept_task_id = State()
     submit_task_id = State()
-
 
 async def preview_maker_role_required(message: types.Message, state: FSMContext, db_repository):
     user_data = await state.get_data()
@@ -38,17 +35,27 @@ async def preview_maker_role_required(message: types.Message, state: FSMContext,
         return False
     return True
 
-
-@router.message(Command(commands='accept_task'))
-async def accept_task_command(message: types.Message, state: FSMContext):
+@router.message(Command(commands='preview_maker_menu'))
+async def preview_maker_menu_command(message: types.Message, state: FSMContext):
     with SessionLocal() as db_session:
         db_repository = DatabaseRepository(db_session)
         if not await preview_maker_role_required(message, state, db_repository):
             return
+        await message.answer("Выберите действие:", reply_markup=get_preview_maker_buttons())
 
-        await message.answer("Введите ID задачи для принятия:")
+@router.callback_query(lambda c: c.data in ['pm_accept_task', 'pm_submit_task', 'pm_view_tasks'])
+async def process_callback_preview_maker(callback_query: types.CallbackQuery, state: FSMContext):
+    action = callback_query.data
+    await callback_query.answer()
+
+    if action == 'pm_accept_task':
+        await callback_query.message.answer("Введите ID задачи для принятия:")
         await state.set_state(PreviewTaskAction.accept_task_id)
-
+    elif action == 'pm_submit_task':
+        await callback_query.message.answer("Введите ID задачи для сдачи:")
+        await state.set_state(PreviewTaskAction.submit_task_id)
+    elif action == 'pm_view_tasks':
+        await view_tasks(callback_query.message, state)
 
 @router.message(PreviewTaskAction.accept_task_id)
 async def process_accept_task_id(message: types.Message, state: FSMContext):
@@ -67,17 +74,6 @@ async def process_accept_task_id(message: types.Message, state: FSMContext):
 
         await message.answer(f'Задача с ID {task_id} принята в работу.')
         await state.clear()
-
-
-@router.message(Command(commands='submit_task'))
-async def submit_task_command(message: types.Message, state: FSMContext):
-    with SessionLocal() as db_session:
-        db_repository = DatabaseRepository(db_session)
-        if not await preview_maker_role_required(message, state, db_repository):
-            return
-        await message.answer("Введите ID задачи для сдачи:")
-        await state.set_state(PreviewTaskAction.submit_task_id)
-
 
 @router.message(PreviewTaskAction.submit_task_id)
 async def process_submit_task_id(message: types.Message, state: FSMContext):
@@ -98,9 +94,8 @@ async def process_submit_task_id(message: types.Message, state: FSMContext):
         await message.answer(f'Задача с ID {task_id} сдана на проверку.')
         await state.clear()
 
-
-@router.message(Command(commands='view_tasks'))
-async def view_tasks_command(message: types.Message, state: FSMContext):
+@router.message(Command(commands='pm_view_tasks'))
+async def view_tasks(message: types.Message, state: FSMContext):
     with SessionLocal() as db_session:
         db_repository = DatabaseRepository(db_session)
         if not await preview_maker_role_required(message, state, db_repository):
@@ -121,7 +116,6 @@ async def view_tasks_command(message: types.Message, state: FSMContext):
         response += "\n".join([f"ID: {task.id}, Title: {task.title}, Status: {task.status}" for task in tasks])
 
         await message.answer(response)
-
 
 def register_handlers(dp: Dispatcher):
     dp.include_router(router)

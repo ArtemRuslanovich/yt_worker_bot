@@ -6,3 +6,5 @@ def role_checker(role):
             return obj.user.role.name == role
         return False
     return inner_checker
+
+#

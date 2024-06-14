@@ -12,7 +12,7 @@ class ExpensesService:
         expenses = self.db_repository.get_expenses_by_channel_id(channel_id)
         total_usd = 0
         total_rub = 0
-
+#
         for expense in expenses:
             if expense.currency == 'USD':
                 total_usd += expense.amount

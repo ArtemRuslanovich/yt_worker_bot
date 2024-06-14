@@ -21,7 +21,7 @@ class StatisticsService:
     def get_preview_maker_statistics(self, preview_maker_id):
         previews = self.db_repository.get_previews_by_preview_maker_id(preview_maker_id)
         return len(previews)
-
+#
     def get_channel_statistics(self, channel_id):
         videos = self.db_repository.get_videos_by_channel_id(channel_id)
         previews = self.db_repository.get_previews_by_channel_id(channel_id)

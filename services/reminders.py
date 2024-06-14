@@ -17,7 +17,7 @@ class RemindersService:
 
     async def send_reminders(self):
         overdue_tasks = self.repository.get_overdue_tasks()
-
+#
         for task in overdue_tasks:
             user = task.user
             if user.role.name == 'Worker':

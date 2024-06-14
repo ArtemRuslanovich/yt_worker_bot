@@ -18,7 +18,7 @@ class PaymentService:
     def get_preview_maker_payment(self, preview_maker_id):
         previews = repository.get_previews_by_preview_maker_id(preview_maker_id)
         total = 0
-
+#
         for preview in previews:
             total += preview.payment
 

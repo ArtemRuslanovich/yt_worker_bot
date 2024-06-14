@@ -10,7 +10,7 @@ class ChannelsService:
 
     def get_channel_by_id(self, channel_id):
         return self.db_repository.get_channel_by_id(channel_id)
-
+#
     def update_channel(self, channel_id, **kwargs):
         return self.db_repository.update_channel(channel_id, **kwargs)
 

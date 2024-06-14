@@ -96,7 +96,7 @@ class Video(Base):
 
 class Preview(Base):
     __tablename__ = 'previews'
-
+#
     id = Column(Integer, primary_key=True)
     video_id = Column(Integer, ForeignKey('videos.id'))
     preview_maker_id = Column(Integer, ForeignKey('users.id'))

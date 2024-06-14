@@ -13,7 +13,7 @@ class PreviewsService:
 
     def get_previews_by_preview_maker_id(self, preview_maker_id):
         return self.db_repository.get_previews_by_preview_maker_id(preview_maker_id)
-
+#
     def get_preview_maker_statistics(self, preview_maker_id):
         previews = self.db_repository.get_previews_by_preview_maker_id(preview_maker_id)
         return len(previews)

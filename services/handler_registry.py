@@ -10,7 +10,7 @@ def register_role_handlers(role: str, dp: Dispatcher):
         "Worker": worker.register_handlers,
         "Preview_maker": preview_maker.register_handlers,
     }
-
+#
     handler_function = role_handlers.get(role)
     if handler_function:
         handler_function(dp)

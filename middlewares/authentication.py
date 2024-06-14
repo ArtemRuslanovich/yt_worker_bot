@@ -18,7 +18,7 @@ class Authenticator:
             return False, 'Неправильная роль'
 
         return True, 'Авторизован'
-
+#
     def check_role(self, user, role):
         if user.role.name == role:
             return True
