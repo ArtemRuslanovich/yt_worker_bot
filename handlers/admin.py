@@ -1,121 +1,42 @@
-import logging
-from aiogram import Dispatcher, Router, types
-from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
-from database.repository import DatabaseRepository
-from database import SessionLocal
-from keyboards.admin_buttons import get_admin_buttons
-from middlewares.authentication import Authenticator
-from services.statistics import StatisticsService
-from services.channels import ChannelsService
-from aiogram.filters.command import Command
+from aiogram import types, Dispatcher
+from database.database import Database
+from keyboards.admin_buttons import channel_list_keyboard, worker_list_keyboard, statistics_keyboard
 
+async def admin_panel(message: types.Message):
+    await message.answer("Админ панель:", reply_markup=statistics_keyboard())
 
-router = Router()
+async def create_channel(message: types.Message):
+    # Запрашиваем название канала
+    await message.answer("Введите название нового канала:")
 
-class ChannelCreation(StatesGroup):
-    waiting_for_name = State()
+async def handle_new_channel(message: types.Message):
+    db = Database()
+    await db.create_channel(message.text)
+    await message.answer("Канал создан.")
 
-async def admin_role_required(state: FSMContext, db_repository):
-    user_data = await state.get_data()
-    logging.info(f"State user data: {user_data}")
-    username = user_data.get('username')
-    role = user_data.get('chosen_role')
-    authenticator = Authenticator(db_repository)
+async def view_channels(message: types.Message):
+    db = Database()
+    channels = await db.get_channels()
+    await message.answer("Список каналов:", reply_markup=channel_list_keyboard(channels))
 
-    user = db_repository.get_user_by_username(username)
+async def view_workers(message: types.Message):
+    db = Database()
+    workers = await db.get_workers()
+    await message.answer("Список работников:", reply_markup=worker_list_keyboard(workers))
 
-    logging.info(f"Checking role for user: {user}")
-    if not user or not authenticator.check_role(user, 'Admin'):
-        return False
-    return True
-
-@router.message(Command(commands='admin_menu'))
-async def show_admin_menu(message: types.Message, state: FSMContext):
-    user_data = await state.get_data()
-    if user_data.get('authenticated') and user_data.get('chosen_role') == 'Admin':
-        await message.answer("Admin menu:", reply_markup=get_admin_buttons())
-    else:
-        await message.answer("Access denied: you do not have admin rights or you are not authenticated.")
-
-@router.callback_query(lambda c: c.data == 'view_statistics')
-async def view_statistics_command(callback_query: CallbackQuery, state: FSMContext):
-    await callback_query.answer()
-    with SessionLocal() as db_session:
-        db_repository = DatabaseRepository(db_session)
-        if not await admin_role_required(state, db_repository):
-            await callback_query.message.answer("Access denied: you do not have admin rights.")
-            return
-
-        statistics_service = StatisticsService(db_repository)
-        statistics = statistics_service.get_statistics()
-
-        response = "Статистика:\n\n"
-        for channel_stats in statistics['channels']:
-            response += f"Канал: {channel_stats['name']}\n"
-            response += f"Расходы: {channel_stats['expenses']}\n"
-            response += f"Зарплаты: {channel_stats['salaries']}\n"
-            response += "\n"
-
-        for worker_stats in statistics['workers']:
-            response += f"Работник: {worker_stats['username']}\n"
-            response += f"Расходы: {worker_stats['expenses']}\n"
-            response += f"Зарплата: {worker_stats['salary']}\n"
-            response += "\n"
-
-        for preview_maker_stats in statistics['preview_makers']:
-            response += f"Preview Maker: {preview_maker_stats['username']}\n"
-            response += f"Расходы: {preview_maker_stats['expenses']}\n"
-            response += f"Зарплата: {preview_maker_stats['salary']}\n"
-            response += "\n"
-
-        await callback_query.message.answer(response)
-
-@router.callback_query(lambda c: c.data == 'create_channel')
-async def create_channel_command(callback_query: CallbackQuery, state: FSMContext):
-    await callback_query.answer()
-    with SessionLocal() as db_session:
-        db_repository = DatabaseRepository(db_session)
-        if not await admin_role_required(state, db_repository):
-            await callback_query.message.answer("Access denied: you do not have admin rights.")
-            return
-
-        await callback_query.message.answer("Введите название канала:")
-        await state.set_state(ChannelCreation.waiting_for_name)
-
-@router.message(ChannelCreation.waiting_for_name)
-async def process_channel_name(message: types.Message, state: FSMContext):
-    channel_name = message.text
-
-    with SessionLocal() as db_session:
-        db_repository = DatabaseRepository(db_session)
-        existing_channel = db_repository.get_channel_by_name(channel_name)
-        if existing_channel:
-            await message.answer("Канал с таким названием уже существует.")
-            return
-
-        new_channel = db_repository.create_channel(name=channel_name)
-        await message.answer(f"Канал '{new_channel.name}' создан.")
-        await state.clear()
-
-@router.callback_query(lambda c: c.data == 'view_channels')
-async def view_channels_command(callback_query: CallbackQuery, state: FSMContext):
-    await callback_query.answer()
-    with SessionLocal() as db_session:
-        db_repository = DatabaseRepository(db_session)
-        if not await admin_role_required(state, db_repository):
-            await callback_query.message.answer("Access denied: you do not have admin rights.")
-            return
-
-        channels_service = ChannelsService(db_repository)
-        channels = channels_service.get_all_channels()
-
-        response = "Текущие каналы:\n\n"
-        for channel in channels:
-            response += f"ID: {channel.id}, Название: {channel.name}\n"
-
-        await callback_query.message.answer(response)
+async def view_statistics(callback_query: types.CallbackQuery):
+    db = Database()
+    if callback_query.data == "stats_channels":
+        stats = await db.get_statistics_by_channels()
+        await callback_query.message.answer(f"Статистика по каналам: {stats}")
+    elif callback_query.data == "stats_workers":
+        stats = await db.get_statistics_by_workers()
+        await callback_query.message.answer(f"Статистика по работникам: {stats}")
 
 def register_handlers(dp: Dispatcher):
-    dp.include_router(router)
+    dp.register_message_handler(admin_panel, commands=['admin'], is_admin=True)
+    dp.register_message_handler(create_channel, commands=['create_channel'], is_admin=True)
+    dp.register_message_handler(handle_new_channel, content_types=types.ContentTypes.TEXT, state='*')
+    dp.register_message_handler(view_channels, commands=['view_channels'], is_admin=True)
+    dp.register_message_handler(view_workers, commands=['view_workers'], is_admin=True)
+    dp.register_callback_query_handler(view_statistics, lambda c: c.data in ['stats_channels', 'stats_workers'])

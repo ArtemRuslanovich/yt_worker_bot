@@ -1,8 +1,21 @@
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
-def get_admin_buttons():
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Просмотреть статистику", callback_data="view_statistics")],
-        [InlineKeyboardButton(text="Создать канал", callback_data="create_channel")],
-        [InlineKeyboardButton(text="Просмотреть каналы", callback_data="view_channels")]
-    ])
+def channel_list_keyboard(channels):
+    markup = InlineKeyboardMarkup(row_width=1)
+    for channel in channels:
+        button = InlineKeyboardButton(text=channel['name'], callback_data=f"manage_channel_{channel['id']}")
+        markup.add(button)
+    return markup
+
+def worker_list_keyboard(workers):
+    markup = InlineKeyboardMarkup(row_width=1)
+    for worker in workers:
+        button = InlineKeyboardButton(text=worker['username'], callback_data=f"manage_worker_{worker['user_id']}")
+        markup.add(button)
+    return markup
+
+def statistics_keyboard():
+    return InlineKeyboardMarkup().add(
+        InlineKeyboardButton(text="Статистика по каналам", callback_data="stats_channels"),
+        InlineKeyboardButton(text="Статистика по работникам", callback_data="stats_workers")
+    )

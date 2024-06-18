@@ -1,121 +1,28 @@
-import datetime
-from aiogram import Dispatcher, Router, types
-from aiogram.filters.command import Command
-from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
-from database.models import Task
-from database.repository import DatabaseRepository
-from database import SessionLocal
-from keyboards.preview_maker_buttons import get_preview_maker_buttons
-from middlewares.authentication import Authenticator
-from services.tasks import TasksService
-from enum import Enum
+from aiogram import types, Dispatcher
+from database.database import Database
+from keyboards.preview_maker_buttons import task_selection_keyboard, task_action_keyboard
 
-class TaskStatus(Enum):
-    AWAITING = "в ожидании выполнения"
-    IN_PROGRESS = "в процессе выполнения"
-    UNDER_REVIEW = "на проверке"
-    COMPLETED = "выполнено"
+async def view_tasks(message: types.Message):
+    db = Database()
+    tasks = await db.get_tasks_by_preview_maker(message.from_user.id)
+    if tasks:
+        await message.answer("Список доступных задач:", reply_markup=task_selection_keyboard(tasks))
+    else:
+        await message.answer("Нет доступных задач.")
 
-router = Router()
+async def select_task(callback_query: types.CallbackQuery):
+    task_id = callback_query.data.split("_")[2]
+    db = Database()
+    await db.assign_task_to_preview_maker(task_id, callback_query.from_user.id)
+    await callback_query.message.answer("Задача выбрана для работы.", reply_markup=task_action_keyboard())
 
-class PreviewTaskAction(StatesGroup):
-    accept_task_id = State()
-    submit_task_id = State()
-
-async def preview_maker_role_required(message: types.Message, state: FSMContext, db_repository):
-    user_data = await state.get_data()
-    username = user_data.get('username')
-    role = user_data.get('role')
-    authenticator = Authenticator(db_repository)
-
-    user = db_repository.get_user_by_username(username)
-    if not user or not authenticator.check_role(user, 'PreviewMaker'):
-        await message.answer("Access denied: you do not have preview maker rights.")
-        return False
-    return True
-
-@router.message(Command(commands='preview_maker_menu'))
-async def preview_maker_menu_command(message: types.Message, state: FSMContext):
-    with SessionLocal() as db_session:
-        db_repository = DatabaseRepository(db_session)
-        if not await preview_maker_role_required(message, state, db_repository):
-            return
-        await message.answer("Выберите действие:", reply_markup=get_preview_maker_buttons())
-
-@router.callback_query(lambda c: c.data in ['pm_accept_task', 'pm_submit_task', 'pm_view_tasks'])
-async def process_callback_preview_maker(callback_query: types.CallbackQuery, state: FSMContext):
-    action = callback_query.data
-    await callback_query.answer()
-
-    if action == 'pm_accept_task':
-        await callback_query.message.answer("Введите ID задачи для принятия:")
-        await state.set_state(PreviewTaskAction.accept_task_id)
-    elif action == 'pm_submit_task':
-        await callback_query.message.answer("Введите ID задачи для сдачи:")
-        await state.set_state(PreviewTaskAction.submit_task_id)
-    elif action == 'pm_view_tasks':
-        await view_tasks(callback_query.message, state)
-
-@router.message(PreviewTaskAction.accept_task_id)
-async def process_accept_task_id(message: types.Message, state: FSMContext):
-    task_id = message.text
-
-    with SessionLocal() as db_session:
-        db_repository = DatabaseRepository(db_session)
-        task = db_repository.get_item_by_id(Task, task_id)
-
-        if not task or task.status != TaskStatus.AWAITING.value:
-            await message.answer('Задача не найдена или не может быть принята.')
-            return
-
-        task.status = TaskStatus.IN_PROGRESS.value
-        db_session.commit()
-
-        await message.answer(f'Задача с ID {task_id} принята в работу.')
-        await state.clear()
-
-@router.message(PreviewTaskAction.submit_task_id)
-async def process_submit_task_id(message: types.Message, state: FSMContext):
-    task_id = message.text
-
-    with SessionLocal() as db_session:
-        db_repository = DatabaseRepository(db_session)
-        task = db_repository.get_item_by_id(Task, task_id)
-
-        if not task or task.status != TaskStatus.IN_PROGRESS.value:
-            await message.answer('Задача не найдена или не может быть сдана.')
-            return
-
-        task.status = TaskStatus.UNDER_REVIEW.value
-        task.actual_completion_date = datetime.datetime.now()
-        db_session.commit()
-
-        await message.answer(f'Задача с ID {task_id} сдана на проверку.')
-        await state.clear()
-
-@router.message(Command(commands='pm_view_tasks'))
-async def view_tasks(message: types.Message, state: FSMContext):
-    with SessionLocal() as db_session:
-        db_repository = DatabaseRepository(db_session)
-        if not await preview_maker_role_required(message, state, db_repository):
-            return
-
-        user_data = await state.get_data()
-        username = user_data.get('username')
-        preview_maker = db_repository.get_user_by_username(username)
-
-        if not preview_maker:
-            await message.answer('Работник не найден.')
-            return
-
-        tasks_service = TasksService(db_repository)
-        tasks = tasks_service.get_tasks_by_user_id(preview_maker.id)
-
-        response = "Ваши задачи:\n\n"
-        response += "\n".join([f"ID: {task.id}, Title: {task.title}, Status: {task.status}" for task in tasks])
-
-        await message.answer(response)
+async def send_task_for_review(callback_query: types.CallbackQuery):
+    db = Database()
+    task_id = callback_query.message.text.split()[-1]  # Предполагаем, что ID задачи находится в последнем сообщении
+    await db.update_task_status(task_id, 'pending_review')
+    await callback_query.message.answer("Задача отправлена на проверку.")
 
 def register_handlers(dp: Dispatcher):
-    dp.include_router(router)
+    dp.register_message_handler(view_tasks, commands=['my_tasks'], is_preview_maker=True)
+    dp.register_callback_query_handler(select_task, lambda c: c.data.startswith('select_task'))
+    dp.register_callback_query_handler(send_task_for_review, lambda c: c.data == 'send_review')

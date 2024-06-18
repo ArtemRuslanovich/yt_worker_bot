@@ -1,44 +1,47 @@
 import asyncio
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.types import BotCommand
-from config import TOKEN
-from database import SessionLocal
-from handlers.start import router as start_router
-from handlers.admin import router as admin_router
-from handlers.manager import router as manager_router
-from handlers.worker import router as worker_router
-from handlers.preview_maker import router as preview_maker_router
 
-bot = Bot(token=TOKEN)
-storage = MemoryStorage()
-dp = Dispatcher(bot=bot, storage=storage)
-#
-def register_all_handlers():
-    dp.include_router(start_router)
-    dp.include_router(admin_router)
-    dp.include_router(manager_router)
-    dp.include_router(worker_router)
-    dp.include_router(preview_maker_router)
+from config import BOT_TOKEN, DATABASE_URL
+from handlers.admin import register_handlers as register_admin_handlers
+from handlers.manager import register_handlers as register_manager_handlers
+from handlers.shooter import register_handlers as register_shooter_handlers
+from handlers.preview_maker import register_handlers as register_preview_maker_handlers
+from handlers.editor import register_handlers as register_editor_handlers
+from handlers.moderator import register_handlers as register_moderator_handlers
+from handlers.authentication import register_handlers as register_auth_handlers
 
-async def on_startup():
-    await bot.set_my_commands([
-        BotCommand(command="/start", description="Start the bot"),
-        BotCommand(command="/create_channel", description="Create a channel"),
-        BotCommand(command="/send_message", description="Send a message to a channel"),
-        BotCommand(command="/set_bonus_percentage", description="Set bonus percentage"),
-        BotCommand(command="/calculate_total_payouts", description="Calculate total payouts"),
-        BotCommand(command="/log_expense", description="Log an expense"),
-        BotCommand(command="/statistics", description="Show statistics"),
-        BotCommand(command="/create_task", description="Create a task"),
-        BotCommand(command="/submit_task", description="Submit a task"),
-        BotCommand(command="/view_tasks", description="View tasks"),
-        BotCommand(command="/submit_preview", description="Submit a preview"),
-        BotCommand(command="/view_previews", description="View previews"),
-        BotCommand(command="/set_salary", description="Set salary"),
-    ])
-    print("Бот запущен и готов к работе!")
+from database.database import Database
+
+async def on_startup(dp):
+    print("Starting bot")
+    # Инициализация соединения с базой данных (если требуется)
+    dp['db'] = Database(dsn=DATABASE_URL)
+    await dp['db'].connect()
+
+async def on_shutdown(dp):
+    print("Shutting down bot")
+    # Закрытие соединения с базой данных
+    await dp['db'].close()
+
+def main():
+    # Инициализация бота и диспетчера
+    bot = Bot(token=BOT_TOKEN)
+    storage = MemoryStorage()  # Вы можете использовать другой тип хранилища
+    dp = Dispatcher(bot, storage=storage)
+
+    
+    # Регистрация обработчиков
+    register_admin_handlers(dp)
+    register_manager_handlers(dp)
+    register_shooter_handlers(dp)
+    register_preview_maker_handlers(dp)
+    register_editor_handlers(dp)
+    register_moderator_handlers(dp)
+    register_auth_handlers(dp)
+    
+    # Запуск бота
+    asyncio.run(dp.start_polling(bot, skip_updates=True, on_startup=on_startup))
 
 if __name__ == "__main__":
-    register_all_handlers()
-    asyncio.run(dp.start_polling(bot, skip_updates=True, on_startup=on_startup))
+    main()
