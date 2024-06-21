@@ -21,13 +21,13 @@ class Database:
         rows = await self.conn.fetch(query)
         return [{'id': row['channel_id'], 'name': row['name']} for row in rows]
 
-    async def create_task(self, channel_id: int, details: str):
+    async def create_task(self, channel_id: int, title: str, description: str):
         query = """
-        INSERT INTO tasks (channel_id, details)
-        VALUES ($1, $2)
+        INSERT INTO tasks (channel_id, title, description)
+        VALUES ($1, $2, $3)
         RETURNING task_id;
         """
-        task_id = await self.conn.fetchval(query, channel_id, details)
+        task_id = await self.conn.fetchval(query, channel_id, title, description)
         return task_id
 
     async def get_tasks(self) -> List[Dict]:
@@ -38,7 +38,7 @@ class Database:
     async def get_task_details(self, task_id: int) -> Dict:
         query = "SELECT * FROM tasks WHERE task_id = $1;"
         row = await self.conn.fetchrow(query, task_id)
-        return {'details': row['details']}
+        return {'details': row['description'], 'title': row['title']}
 
     async def update_task_status(self, task_id: int, status: str):
         query = """
@@ -75,7 +75,6 @@ class Database:
             row = await self.conn.fetch(query)
         return row
     
-
     #admin
 
     async def create_channel(self, name: str):
@@ -89,15 +88,42 @@ class Database:
         return [{'user_id': row['user_id'], 'username': row['username']} for row in rows]
 
     async def get_statistics_by_channels(self):
-        query = "SELECT * FROM statistics WHERE channel_id IS NOT NULL;"
+        query = """
+        SELECT 
+            statistics.*, 
+            channels.name AS channel_name, 
+            users.username AS worker_username
+        FROM statistics
+        JOIN channels ON statistics.channel_id = channels.channel_id
+        JOIN users ON statistics.worker_id = users.user_id
+        WHERE statistics.channel_id IS NOT NULL;
+        """
         rows = await self.conn.fetch(query)
         return rows
 
     async def get_statistics_by_workers(self):
-        query = "SELECT * FROM statistics WHERE worker_id IS NOT NULL;"
+        query = """
+        SELECT 
+            statistics.*, 
+            users.username AS worker_username
+        FROM statistics
+        JOIN users ON statistics.worker_id = users.user_id
+        WHERE statistics.worker_id IS NOT NULL;
+        """
         rows = await self.conn.fetch(query)
         return rows
 
+    async def get_overall_statistics(self):
+        query = """
+        SELECT 
+            SUM(income) AS total_income,
+            SUM(expense) AS total_expense,
+            SUM(income - expense) AS total_net_profit,
+            SUM(tasks_completed) AS total_tasks_completed
+        FROM statistics;
+        """
+        rows = await self.conn.fetch(query)
+        return rows
 
 
     # moderator
@@ -117,7 +143,6 @@ class Database:
         row = await self.conn.fetchrow(query, task_id)
         return {'details': row['description'], 'title': row['title']}
     
-
     # preview_maker
 
     async def get_tasks_by_preview_maker(self, preview_maker_id: int):
@@ -147,7 +172,6 @@ class Database:
         query = "UPDATE tasks SET status = $2 WHERE task_id = $1;"
         await self.conn.execute(query, task_id, status)
 
-
     #editor 
     async def get_tasks_by_editor(self, editor_id: int):
         query = "SELECT * FROM tasks WHERE assigned_to = $1 AND status = 'assigned';"
@@ -161,7 +185,6 @@ class Database:
     async def update_task_status(self, task_id: int, status: str):
         query = "UPDATE tasks SET status = $2 WHERE task_id = $1;"
         await self.conn.execute(query, task_id, status)
-
 
     #auth_service
         
@@ -182,4 +205,4 @@ class Database:
                 }
         except Exception as e:
             print(f"Error fetching user by username: {e}")
-            return None
+        return None

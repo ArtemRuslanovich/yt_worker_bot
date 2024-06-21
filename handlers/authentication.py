@@ -1,5 +1,5 @@
 from aiogram import Dispatcher, types
-from aiogram.fsm.context import FSMContext
+from aiogram.dispatcher import FSMContext
 from services.auth_service import authenticate
 from states.auth_states import AuthStates
 
@@ -26,13 +26,21 @@ async def password_entered(message: types.Message, state: FSMContext):
     password = message.text
     role = user_data['chosen_role']
 
-    # Исправленный вызов асинхронной функции authenticate
-    if await authenticate(username, password, role):
-        await message.answer(f"Authenticated as {role}.")
-        await state.update_data(authenticated=True)
-        await state.set_state(getattr(AuthStates, role))  # Переход в состояние роли
-    else:
-        await message.answer("Authentication failed. Try again.")
+    print(f"Authenticating user: {username}, role: {role}")  # Debugging line
+
+    try:
+        db = message.bot.get('db')  # Retrieve the Database instance
+        authenticated = await authenticate(db, username, password, role)
+        if authenticated:
+            await message.answer(f"Authenticated as {role}.")
+            await state.update_data(authenticated=True)
+            await state.set_state(getattr(AuthStates, role))  # Transition to role state
+        else:
+            await message.answer("Authentication failed. Try again.")
+            await state.finish()
+    except Exception as e:
+        print(f"Error during authentication: {e}")
+        await message.answer("An error occurred during authentication. Please try again later.")
         await state.finish()
 
 def register_handlers(dp: Dispatcher):

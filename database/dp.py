@@ -54,11 +54,11 @@ async def init_db():
             statistic_id SERIAL PRIMARY KEY,
             channel_id INT REFERENCES channels(channel_id),
             worker_id INT REFERENCES users(user_id),
-            tasks completed INT DEFAULT 0,
-            errors made INT DEFAULT 0,
-            amount spent NUMERIC(10, 2) DEFAULT 0,
+            tasks_completed INT DEFAULT 0,
+            errors_made INT DEFAULT 0,
+            amount_spent NUMERIC(10, 2) DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
     ''')
     await conn.close()
