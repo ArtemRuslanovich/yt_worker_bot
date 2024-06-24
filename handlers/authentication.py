@@ -1,7 +1,13 @@
 from aiogram import Dispatcher, types
 from aiogram.dispatcher import FSMContext
+from handlers.editor import editor_menu
+from handlers.moderator import moderator_menu
+from handlers.preview_maker import preview_maker_menu
 from services.auth_service import authenticate
+from handlers.shooter import shooter_menu
 from states.auth_states import AuthStates
+from handlers.admin import admin_panel
+from handlers.manager import manager_menu
 
 async def cmd_start(message: types.Message):
     reply_markup = types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
@@ -34,7 +40,18 @@ async def password_entered(message: types.Message, state: FSMContext):
         if authenticated:
             await message.answer(f"Authenticated as {role}.")
             await state.update_data(authenticated=True)
-            await state.set_state(getattr(AuthStates, role))  # Transition to role state
+            if role == 'admin':
+                await admin_panel(message, state)
+            elif role == 'manager':
+                await manager_menu(message, state)
+            elif role == 'moderator':
+                await moderator_menu(message, state)
+            elif role == 'editor':
+                await editor_menu(message, state)
+            elif role == 'preview_maker':
+                await preview_maker_menu(message, state)
+            elif role == 'shooter':
+                await shooter_menu(message, state)
         else:
             await message.answer("Authentication failed. Try again.")
             await state.finish()

@@ -1,3 +1,4 @@
+import datetime
 import asyncpg
 from typing import List, Dict
 
@@ -90,28 +91,36 @@ class Database:
     async def get_statistics_by_channels(self):
         query = """
         SELECT 
-            statistics.*, 
-            channels.name AS channel_name, 
+            statistics.*,
+            channels.name AS channel_name,
             users.username AS worker_username
         FROM statistics
         JOIN channels ON statistics.channel_id = channels.channel_id
-        JOIN users ON statistics.worker_id = users.user_id
+        LEFT JOIN users ON statistics.worker_id = users.user_id
         WHERE statistics.channel_id IS NOT NULL;
         """
-        rows = await self.conn.fetch(query)
-        return rows
+        try:
+            rows = await self.conn.fetch(query)
+            return rows
+        except Exception as e:
+            print(f"Error fetching statistics by channels: {e}")
+            return []
 
     async def get_statistics_by_workers(self):
         query = """
         SELECT 
-            statistics.*, 
+            statistics.*,
             users.username AS worker_username
         FROM statistics
         JOIN users ON statistics.worker_id = users.user_id
         WHERE statistics.worker_id IS NOT NULL;
         """
-        rows = await self.conn.fetch(query)
-        return rows
+        try:
+            rows = await self.conn.fetch(query)
+            return rows
+        except Exception as e:
+            print(f"Error fetching statistics by workers: {e}")
+            return []
 
     async def get_overall_statistics(self):
         query = """
@@ -124,6 +133,14 @@ class Database:
         """
         rows = await self.conn.fetch(query)
         return rows
+    
+    async def add_monthly_income_to_channel(self, channel_id: int, amount: float, description: str):
+        current_month = datetime.now().strftime("%Y-%m")
+        query = """
+        INSERT INTO finances (channel_id, amount, type, description, created_at)
+        VALUES ($1, $2, 'income', $3, $4);
+        """
+        await self.conn.execute(query, channel_id, amount, description, current_month)
 
 
     # moderator
