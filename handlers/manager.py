@@ -74,3 +74,4 @@ def register_handlers(dp: Dispatcher):
     dp.register_callback_query_handler(approve_task, lambda c: c.data == 'approve', state=AuthStates.manager)
     dp.register_callback_query_handler(revise_task, lambda c: c.data == 'revise', state=AuthStates.manager)
     dp.register_callback_query_handler(go_back, lambda c: c.data == 'go_back', state='*')
+

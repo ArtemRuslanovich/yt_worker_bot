@@ -35,3 +35,12 @@ def statistics_keyboard(add_back_button=False):
     if add_back_button:
         markup.add(InlineKeyboardButton(text="Назад", callback_data="go_back"))
     return markup
+
+def channel_keyboard(channels, add_back_button=False):
+    markup = InlineKeyboardMarkup(row_width=1)
+    for channel in channels:
+        button = InlineKeyboardButton(text=channel['name'], callback_data=f"select_channel_income_{channel['id']}")
+        markup.add(button)
+    if add_back_button:
+        markup.add(InlineKeyboardButton(text="Назад", callback_data="go_back"))
+    return markup

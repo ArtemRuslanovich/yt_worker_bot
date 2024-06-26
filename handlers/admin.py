@@ -1,7 +1,7 @@
 from aiogram import types, Dispatcher
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
-from keyboards.admin_buttons import main_admin_keyboard, channel_list_keyboard, worker_list_keyboard, statistics_keyboard
+from keyboards.admin_buttons import channel_keyboard, main_admin_keyboard, channel_list_keyboard, worker_list_keyboard, statistics_keyboard
 from database.database import Database
 from datetime import datetime
 
@@ -9,11 +9,15 @@ class AuthStates(StatesGroup):
     admin = State()
     creating_channel = State()
     choosing_stats_type = State()
-    adding_monthly_income = State()
+    choosing_income_channel = State() 
+    entering_income_details = State()  
 
 async def admin_panel(message: types.Message, state: FSMContext):
     await message.answer("Админ панель:", reply_markup=main_admin_keyboard())
     await AuthStates.admin.set()
+
+async def go_back(callback_query: types.CallbackQuery, state: FSMContext):
+    await admin_panel(callback_query.message, state)
 
 async def create_channel(callback_query: types.CallbackQuery, state: FSMContext):
     await callback_query.message.answer("Введите название нового канала:")
@@ -83,20 +87,27 @@ async def view_statistics(callback_query: types.CallbackQuery, state: FSMContext
             await callback_query.message.answer("Нет доступной статистики по работникам.")
     await AuthStates.admin.set()
 
-async def add_monthly_income(callback_query: types.CallbackQuery, state: FSMContext):
-    await callback_query.message.answer("Введите ID канала и сумму дохода за текущий месяц (разделены пробелом):")
-    await AuthStates.adding_monthly_income.set()
+async def start_income_addition(callback_query: types.CallbackQuery, state: FSMContext):
+    db: Database = callback_query.message.bot['db']
+    channels = await db.get_channels()  # Получение списка каналов из БД
+    await AuthStates.choosing_income_channel.set()
+    await callback_query.message.answer("Выберите канал:", reply_markup=channel_keyboard(channels, add_back_button=True))
 
-async def handle_monthly_income(message: types.Message, state: FSMContext):
+async def choose_income_channel(callback_query: types.CallbackQuery, state: FSMContext):
+    await state.update_data(channel_id=int(callback_query.data.split("_")[3]))  # Обновляем данные состояния с ID канала
+    await AuthStates.entering_income_details.set()
+    await callback_query.message.answer("Введите сумму дохода за текущий месяц:")
+
+async def process_income_details(message: types.Message, state: FSMContext):
     try:
-        channel_id, amount = message.text.split()
-        channel_id = int(channel_id)
-        amount = float(amount)
+        amount = float(message.text)
+        task_data = await state.get_data()
+        channel_id = task_data['channel_id']
         db: Database = message.bot['db']
         await db.add_monthly_income_to_channel(channel_id, amount, "Доход за текущий месяц")
         await message.answer(f"Доход в размере {amount} успешно добавлен для канала с ID {channel_id}.")
     except ValueError:
-        await message.answer("Некорректный формат ввода. Введите ID канала и сумму дохода (разделены пробелом).")
+        await message.answer("Некорректный формат ввода. Введите число.")
     except Exception as e:
         await message.answer(f"Произошла ошибка при добавлении дохода: {e}")
 
@@ -111,5 +122,7 @@ def register_handlers(dp: Dispatcher):
     dp.register_callback_query_handler(view_workers, lambda c: c.data == 'view_workers', state=AuthStates.admin)
     dp.register_callback_query_handler(choose_statistics, lambda c: c.data == 'view_statistics', state=AuthStates.admin)
     dp.register_callback_query_handler(view_statistics, lambda c: c.data in ['stats_channels', 'stats_workers'], state=AuthStates.choosing_stats_type)
-    dp.register_callback_query_handler(add_monthly_income, lambda c: c.data == 'add_monthly_income', state='*')
-    dp.register_message_handler(handle_monthly_income, content_types=types.ContentTypes.TEXT, state=AuthStates.adding_monthly_income)
+    dp.register_callback_query_handler(start_income_addition, lambda c: c.data == 'add_monthly_income', state='*')
+    dp.register_callback_query_handler(choose_income_channel, lambda c: c.data.startswith('select_channel_income_'), state=AuthStates.choosing_income_channel)
+    dp.register_message_handler(process_income_details, content_types=types.ContentTypes.TEXT, state=AuthStates.entering_income_details)
+    dp.register_callback_query_handler(go_back, lambda c: c.data == 'go_back', state='*')
