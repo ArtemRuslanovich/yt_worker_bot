@@ -9,7 +9,16 @@ def manager_main_keyboard():
 def channel_keyboard(channels, add_back_button=False):
     markup = InlineKeyboardMarkup(row_width=1)
     for channel in channels:
-        button = InlineKeyboardButton(text=channel['name'], callback_data=f"channel_{channel['id']}")
+        button = InlineKeyboardButton(text=channel['name'], callback_data=f"channel_{channel['channel_id']}")
+        markup.add(button)
+    if add_back_button:
+        markup.add(InlineKeyboardButton(text="Назад", callback_data="go_back"))
+    return markup
+
+def worker_keyboard(workers, add_back_button=False):
+    markup = InlineKeyboardMarkup(row_width=1)
+    for worker in workers:
+        button = InlineKeyboardButton(text=worker['username'], callback_data=f"worker_{worker['user_id']}")
         markup.add(button)
     if add_back_button:
         markup.add(InlineKeyboardButton(text="Назад", callback_data="go_back"))
@@ -27,7 +36,7 @@ def task_keyboard(tasks, add_back_button=False):
 def task_approval_keyboard(add_back_button=False):
     markup = InlineKeyboardMarkup(row_width=1).add(
         InlineKeyboardButton(text="Одобрить", callback_data="approve"),
-        InlineKeyboardButton(text="На доработку", callback_data="revise")
+        InlineKeyboardButton(text="Отправить на доработку", callback_data="revise")
     )
     if add_back_button:
         markup.add(InlineKeyboardButton(text="Назад", callback_data="go_back"))

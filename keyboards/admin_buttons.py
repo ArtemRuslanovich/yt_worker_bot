@@ -12,7 +12,7 @@ def main_admin_keyboard():
 def channel_list_keyboard(channels, add_back_button=False):
     markup = InlineKeyboardMarkup(row_width=1)
     for channel in channels:
-        button = InlineKeyboardButton(text=channel['name'], callback_data=f"manage_channel_{channel['id']}")
+        button = InlineKeyboardButton(text=channel['name'], callback_data=f"assign_worker_to_channel_{channel['channel_id']}")
         markup.add(button)
     if add_back_button:
         markup.add(InlineKeyboardButton(text="Назад", callback_data="go_back"))
@@ -39,8 +39,17 @@ def statistics_keyboard(add_back_button=False):
 def channel_keyboard(channels, add_back_button=False):
     markup = InlineKeyboardMarkup(row_width=1)
     for channel in channels:
-        button = InlineKeyboardButton(text=channel['name'], callback_data=f"select_channel_income_{channel['id']}")
+        button = InlineKeyboardButton(text=channel['name'], callback_data=f"select_channel_income_{channel['channel_id']}")
         markup.add(button)
+    if add_back_button:
+        markup.add(InlineKeyboardButton(text="Назад", callback_data="go_back"))
+    return markup
+
+def worker_info_keyboard(add_back_button=False):
+    markup = InlineKeyboardMarkup(row_width=1).add(
+        InlineKeyboardButton(text="Добавить затраты", callback_data="add_worker_expense"),
+        InlineKeyboardButton(text="Добавить ошибку", callback_data="add_worker_error")
+    )
     if add_back_button:
         markup.add(InlineKeyboardButton(text="Назад", callback_data="go_back"))
     return markup

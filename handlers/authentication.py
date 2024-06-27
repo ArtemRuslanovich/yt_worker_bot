@@ -61,6 +61,7 @@ async def password_entered(message: types.Message, state: FSMContext):
         await state.finish()
 
 def register_handlers(dp: Dispatcher):
+    
     dp.register_message_handler(cmd_start, commands="start", state="*")
     dp.register_message_handler(role_chosen, state=AuthStates.waiting_for_role)
     dp.register_message_handler(username_entered, state=AuthStates.waiting_for_username)

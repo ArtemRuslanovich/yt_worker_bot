@@ -1,7 +1,7 @@
 from aiogram import types, Dispatcher
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
-from keyboards.manager_buttons import manager_main_keyboard, channel_keyboard, task_keyboard, task_approval_keyboard
+from keyboards.manager_buttons import manager_main_keyboard, channel_keyboard, task_keyboard, task_approval_keyboard, worker_keyboard
 from database.database import Database
 
 class AuthStates(StatesGroup):
@@ -9,6 +9,7 @@ class AuthStates(StatesGroup):
 
 class CreateTask(StatesGroup):
     choosing_channel = State()
+    choosing_worker = State()
     entering_task_details = State()
 
 async def manager_menu(message: types.Message, state: FSMContext):
@@ -22,7 +23,16 @@ async def start_task_creation(callback_query: types.CallbackQuery, state: FSMCon
     await callback_query.message.answer("Выберите канал:", reply_markup=channel_keyboard(channels, add_back_button=True))
 
 async def choose_channel(callback_query: types.CallbackQuery, state: FSMContext):
-    await state.update_data(channel_id=int(callback_query.data.split("_")[1]))
+    channel_id = int(callback_query.data.split("_")[1])
+    await state.update_data(channel_id=channel_id)
+    db: Database = callback_query.message.bot['db']
+    workers = await db.get_workers_by_channel(channel_id)  # Получение списка работников для выбранного канала
+    await CreateTask.choosing_worker.set()
+    await callback_query.message.answer("Выберите работника:", reply_markup=worker_keyboard(workers, add_back_button=True))
+
+async def choose_worker(callback_query: types.CallbackQuery, state: FSMContext):
+    worker_id = int(callback_query.data.split("_")[1])
+    await state.update_data(worker_id=worker_id)
     await CreateTask.entering_task_details.set()
     await callback_query.message.answer("Введите детали задачи (название и описание через запятую):")
 
@@ -30,7 +40,7 @@ async def process_task_details(message: types.Message, state: FSMContext):
     task_data = await state.get_data()
     db: Database = message.bot['db']
     title, description = message.text.split(",", 1)  # Предполагаем, что название и описание разделены запятой
-    await db.create_task(channel_id=task_data['channel_id'], title=title.strip(), description=description.strip())
+    await db.create_task(channel_id=task_data['channel_id'], worker_id=task_data['worker_id'], title=title.strip(), description=description.strip())
     await message.reply("Задача создана.")
     await manager_menu(message, state)
 
@@ -69,9 +79,9 @@ def register_handlers(dp: Dispatcher):
     dp.register_callback_query_handler(start_task_creation, lambda c: c.data == 'new_task', state=AuthStates.manager)
     dp.register_callback_query_handler(view_tasks, lambda c: c.data == 'view_tasks', state=AuthStates.manager)
     dp.register_callback_query_handler(choose_channel, lambda c: c.data.startswith('channel_'), state=CreateTask.choosing_channel)
+    dp.register_callback_query_handler(choose_worker, lambda c: c.data.startswith('worker_'), state=CreateTask.choosing_worker)
     dp.register_message_handler(process_task_details, state=CreateTask.entering_task_details)
     dp.register_callback_query_handler(check_task, lambda c: c.data.startswith('task_'), state=AuthStates.manager)
     dp.register_callback_query_handler(approve_task, lambda c: c.data == 'approve', state=AuthStates.manager)
     dp.register_callback_query_handler(revise_task, lambda c: c.data == 'revise', state=AuthStates.manager)
     dp.register_callback_query_handler(go_back, lambda c: c.data == 'go_back', state='*')
-
