@@ -14,15 +14,17 @@ class AuthStates(StatesGroup):
     viewing_worker_info = State()
     adding_worker_expense = State()
     adding_worker_error = State()
-    assigning_worker_to_channel = State()  # новое состояние
-    choosing_worker_for_assignment = State()  # новое состояние
+    assigning_worker_to_channel = State()
+    choosing_worker_for_assignment = State()
 
 async def admin_panel(message: types.Message, state: FSMContext):
     await message.answer("Админ панель:", reply_markup=main_admin_keyboard())
     await AuthStates.admin.set()
 
 async def go_back(callback_query: types.CallbackQuery, state: FSMContext):
-    await admin_panel(callback_query.message, state)
+    current_state = await state.get_state()
+    if current_state == AuthStates.admin.state:
+        await admin_panel(callback_query.message, state)
 
 async def create_channel(callback_query: types.CallbackQuery, state: FSMContext):
     await callback_query.message.answer("Введите название нового канала:")
@@ -37,8 +39,7 @@ async def handle_new_channel(message: types.Message, state: FSMContext):
 async def view_channels(callback_query: types.CallbackQuery, state: FSMContext):
     db: Database = callback_query.bot['db']
     channels = await db.get_channels()
-    formatted_channels = [{'channel_id': row['id'], 'name': row['name']} for row in channels]
-    await callback_query.message.answer("Список каналов:", reply_markup=channel_list_keyboard(formatted_channels, add_back_button=True))
+    await callback_query.message.answer("Список каналов:", reply_markup=channel_list_keyboard(channels, add_back_button=True))
     await AuthStates.admin.set()
 
 async def view_workers(callback_query: types.CallbackQuery, state: FSMContext):
@@ -146,9 +147,8 @@ async def view_statistics(callback_query: types.CallbackQuery, state: FSMContext
 async def start_income_addition(callback_query: types.CallbackQuery, state: FSMContext):
     db: Database = callback_query.message.bot['db']
     channels = await db.get_channels()  # Получение списка каналов из БД
-    formatted_channels = [{'channel_id': row['id'], 'name': row['name']} for row in channels]
     await AuthStates.choosing_income_channel.set()
-    await callback_query.message.answer("Выберите канал:", reply_markup=channel_keyboard(formatted_channels, add_back_button=True))
+    await callback_query.message.answer("Выберите канал:", reply_markup=channel_keyboard(channels, add_back_button=True))
 
 async def choose_income_channel(callback_query: types.CallbackQuery, state: FSMContext):
     await state.update_data(channel_id=int(callback_query.data.split("_")[3]))  # Обновляем данные состояния с ID канала
@@ -204,5 +204,5 @@ def register_handlers(dp: Dispatcher):
     dp.register_callback_query_handler(choose_income_channel, lambda c: c.data.startswith('select_channel_income_'), state=AuthStates.choosing_income_channel)
     dp.register_message_handler(process_income_details, content_types=types.ContentTypes.TEXT, state=AuthStates.entering_income_details)
     dp.register_callback_query_handler(go_back, lambda c: c.data == 'go_back', state='*')
-    dp.register_callback_query_handler(choose_worker_for_channel, lambda c: c.data.startswith('assign_worker_to_channel_'), state=AuthStates.admin)  # новый обработчик
-    dp.register_callback_query_handler(assign_worker_to_channel, lambda c: c.data.startswith('manage_worker_'), state=AuthStates.choosing_worker_for_assignment)  # новый обработчик
+    dp.register_callback_query_handler(choose_worker_for_channel, lambda c: c.data.startswith('assign_worker_to_channel_'), state=AuthStates.admin)
+    dp.register_callback_query_handler(assign_worker_to_channel, lambda c: c.data.startswith('manage_worker_'), state=AuthStates.choosing_worker_for_assignment)

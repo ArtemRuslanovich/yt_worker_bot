@@ -16,7 +16,7 @@ def task_selection_keyboard(tasks, add_back_button=False):
 
 def task_action_keyboard(add_back_button=False):
     markup = InlineKeyboardMarkup(row_width=1).add(
-        InlineKeyboardButton(text="Отправить на проверку", callback_data="send_review")
+        InlineKeyboardButton(text="Отправить на проверку", callback_data="send_review_task")
     )
     if add_back_button:
         markup.add(InlineKeyboardButton(text="Назад", callback_data="go_back"))

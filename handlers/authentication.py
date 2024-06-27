@@ -36,10 +36,11 @@ async def password_entered(message: types.Message, state: FSMContext):
 
     try:
         db = message.bot.get('db')  # Retrieve the Database instance
-        authenticated = await authenticate(db, username, password, role)
-        if authenticated:
+        authenticated_user = await authenticate(db, username, password, role)
+        if authenticated_user:
+            user_id = authenticated_user['user_id']
+            await state.update_data(authenticated=True, user_id=user_id)
             await message.answer(f"Authenticated as {role}.")
-            await state.update_data(authenticated=True)
             if role == 'admin':
                 await admin_panel(message, state)
             elif role == 'manager':
@@ -59,9 +60,8 @@ async def password_entered(message: types.Message, state: FSMContext):
         print(f"Error during authentication: {e}")
         await message.answer("An error occurred during authentication. Please try again later.")
         await state.finish()
-
+        
 def register_handlers(dp: Dispatcher):
-    
     dp.register_message_handler(cmd_start, commands="start", state="*")
     dp.register_message_handler(role_chosen, state=AuthStates.waiting_for_role)
     dp.register_message_handler(username_entered, state=AuthStates.waiting_for_username)

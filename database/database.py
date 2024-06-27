@@ -106,13 +106,13 @@ class Database:
         await self.conn.execute(query, channel_id, worker_id)
 
     # Создание задачи
-    async def create_task(self, channel_id: int, title: str, description: str):
+    async def create_task(self, channel_id: int, title: str, description: str, assigned_to: int, status: str):
         query = """
-        INSERT INTO tasks (channel_id, title, description, created_at)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO tasks (channel_id, title, description, assigned_to, status, created_at)
+        VALUES ($1, $2, $3, $4, $5, NOW())
         RETURNING task_id;
         """
-        task_id = await self.conn.fetchval(query, channel_id, title, description, datetime.datetime.now())
+        task_id = await self.conn.fetchval(query, channel_id, title, description, assigned_to, status)
         return task_id
 
     # Получение списка задач
@@ -249,12 +249,58 @@ class Database:
         return None
 
 # Получение списка работников для указанного канала
-async def get_workers_by_channel(self, channel_id: int) -> List[Dict]:
-    query = """
-    SELECT u.user_id, u.username
-    FROM users u
-    LEFT JOIN channels c ON u.channel_id = c.channel_id
-    WHERE u.channel_id = $1;
-    """
-    rows = await self.conn.fetch(query, channel_id)
-    return [{'user_id': row['user_id'], 'username': row['username']} for row in rows]
+    async def get_workers_by_channel(self, channel_id: int) -> List[Dict]:
+        query = """
+        SELECT u.user_id, u.username
+        FROM users u
+        LEFT JOIN channels c ON u.channel_id = c.channel_id
+        WHERE u.channel_id = $1;
+        """
+        rows = await self.conn.fetch(query, channel_id)
+        return [{'user_id': row['user_id'], 'username': row['username']} for row in rows]
+    
+    async def get_tasks(self) -> List[Dict]:
+        query = "SELECT task_id, title FROM tasks;"
+        rows = await self.conn.fetch(query)
+        return [{'id': row['task_id'], 'title': row['title']} for row in rows]
+
+    async def get_task_details(self, task_id: int) -> Dict:
+        query = "SELECT * FROM tasks WHERE task_id = $1;"
+        row = await self.conn.fetchrow(query, task_id)
+        return {'details': row['description'], 'title': row['title']}
+
+    async def update_task_status(self, task_id: int, status: str):
+        query = "UPDATE tasks SET status = $2, updated_at = NOW() WHERE task_id = $1;"
+        await self.conn.execute(query, task_id, status)
+
+    async def get_tasks_by_editor(self, editor_id: int) -> List[Dict]:
+        query = "SELECT task_id, title FROM tasks WHERE assigned_to = $1 AND status = 'assigned';"
+        rows = await self.conn.fetch(query, editor_id)
+        return [{'id': row['task_id'], 'title': row['title']} for row in rows]
+
+    async def assign_task_to_editor(self, task_id: int, editor_id: int):
+        query = "UPDATE tasks SET assigned_to = $1 WHERE task_id = $2;"
+        await self.conn.execute(query, editor_id, task_id)
+
+    async def get_tasks_by_preview_maker(self, preview_maker_id: int) -> List[Dict]:
+        query = "SELECT task_id, title FROM tasks WHERE assigned_to = $1 AND status = 'assigned';"
+        rows = await self.conn.fetch(query, preview_maker_id)
+        return [{'id': row['task_id'], 'title': row['title']} for row in rows]
+
+    async def assign_task_to_preview_maker(self, task_id: int, preview_maker_id: int):
+        query = "UPDATE tasks SET assigned_to = $1 WHERE task_id = $2;"
+        await self.conn.execute(query, preview_maker_id, task_id)
+
+    async def get_tasks_by_shooter(self, shooter_id: int) -> List[Dict]:
+        query = "SELECT task_id, title FROM tasks WHERE assigned_to = $1 AND status = 'assigned';"
+        rows = await self.conn.fetch(query, shooter_id)
+        return [{'id': row['task_id'], 'title': row['title']} for row in rows]
+
+    async def assign_task_to_shooter(self, task_id: int, shooter_id: int):
+        query = "UPDATE tasks SET assigned_to = $1 WHERE task_id = $2;"
+        await self.conn.execute(query, shooter_id, task_id)
+
+    async def get_tasks_for_review(self) -> List[Dict]:
+        query = "SELECT task_id, title FROM tasks WHERE status = 'pending_review';"
+        rows = await self.conn.fetch(query)
+        return [{'id': row['task_id'], 'title': row['title']} for row in rows]

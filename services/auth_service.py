@@ -2,12 +2,11 @@
 from database.database import Database
 
 
-async def authenticate(db: Database, username: str, password: str, role: str) -> bool:
-    print(f"Fetching user {username} from database")  # Debugging line
-    try:
-        user = await db.get_user_by_username(username)
-        if user and user['password'] == password and user['role'] == role:
-            return True
-    except Exception as e:
-        print(f"Error in authenticate function: {e}")
-    return False
+async def authenticate(db, username: str, password: str, role: str):
+    query = """
+    SELECT user_id, role FROM users WHERE username = $1 AND password = $2 AND role = $3;
+    """
+    row = await db.conn.fetchrow(query, username, password, role)
+    if row:
+        return {'user_id': row['user_id'], 'role': row['role']}
+    return None
