@@ -1,7 +1,14 @@
 from aiogram import types, Dispatcher
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
-from keyboards.admin_buttons import channel_keyboard, main_admin_keyboard, channel_list_keyboard, worker_list_keyboard, statistics_keyboard, worker_info_keyboard
+from keyboards.admin_buttons import (
+    channel_keyboard,
+    main_admin_keyboard,
+    channel_list_keyboard,
+    worker_list_keyboard,
+    statistics_keyboard,
+    worker_info_keyboard
+)
 from database.database import Database
 from datetime import datetime
 
@@ -51,7 +58,7 @@ async def view_workers(callback_query: types.CallbackQuery, state: FSMContext):
 async def view_worker_info(callback_query: types.CallbackQuery, state: FSMContext):
     worker_id = int(callback_query.data.split("_")[2])
     db: Database = callback_query.bot['db']
-    worker_info = await db.get_worker_info(worker_id)
+    worker_info = await db.get_worker_monthly_info(worker_id)
     if not worker_info:
         await callback_query.message.answer("Информация о работнике не найдена.")
         return
@@ -61,8 +68,8 @@ async def view_worker_info(callback_query: types.CallbackQuery, state: FSMContex
     await callback_query.message.answer(
         f"Информация о работнике:\n\n"
         f"Имя: {worker_info.get('username', 'N/A')}\n"
-        f"Задания выполнены: {worker_info.get('tasks_completed', 'N/A')}\n"
-        f"Ошибки: {worker_info.get('errors_made', 'N/A')}\n"
+        f"Задания выполнены за месяц: {worker_info.get('monthly_tasks_completed', 'N/A')}\n"
+        f"Ошибки за месяц: {worker_info.get('monthly_errors_made', 'N/A')}\n"
         f"Затраты: {worker_info.get('amount_spent', 'N/A')}\n"
         f"{channel_info}",
         reply_markup=worker_info_keyboard(add_back_button=True)
@@ -146,12 +153,12 @@ async def view_statistics(callback_query: types.CallbackQuery, state: FSMContext
 
 async def start_income_addition(callback_query: types.CallbackQuery, state: FSMContext):
     db: Database = callback_query.message.bot['db']
-    channels = await db.get_channels()  # Получение списка каналов из БД
+    channels = await db.get_channels()
     await AuthStates.choosing_income_channel.set()
     await callback_query.message.answer("Выберите канал:", reply_markup=channel_keyboard(channels, add_back_button=True))
 
 async def choose_income_channel(callback_query: types.CallbackQuery, state: FSMContext):
-    await state.update_data(channel_id=int(callback_query.data.split("_")[3]))  # Обновляем данные состояния с ID канала
+    await state.update_data(channel_id=int(callback_query.data.split("_")[3]))
     await AuthStates.entering_income_details.set()
     await callback_query.message.answer("Введите сумму дохода за текущий месяц:")
 
@@ -173,7 +180,7 @@ async def process_income_details(message: types.Message, state: FSMContext):
 async def choose_worker_for_channel(callback_query: types.CallbackQuery, state: FSMContext):
     db: Database = callback_query.bot['db']
     workers = await db.get_workers()
-    await state.update_data(channel_id=int(callback_query.data.split("_")[-1]))  # Обновляем данные состояния с ID канала
+    await state.update_data(channel_id=int(callback_query.data.split("_")[-1]))
     await callback_query.message.answer("Выберите работника:", reply_markup=worker_list_keyboard(workers, add_back_button=True))
     await AuthStates.choosing_worker_for_assignment.set()
 
@@ -185,6 +192,11 @@ async def assign_worker_to_channel(callback_query: types.CallbackQuery, state: F
     await db.assign_worker_to_channel(worker_id, channel_id)
     await callback_query.message.answer(f"Работник успешно привязан к каналу.")
     await AuthStates.admin.set()
+
+async def reset_monthly_errors(message: types.Message):
+    db: Database = message.bot['db']
+    await db.reset_monthly_errors()
+    print("Monthly errors reset.")
 
 def register_handlers(dp: Dispatcher):
     dp.register_message_handler(admin_panel, commands=['menu'], state='*')

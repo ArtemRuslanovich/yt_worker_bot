@@ -1,10 +1,11 @@
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 def manager_main_keyboard():
-    return InlineKeyboardMarkup(row_width=1).add(
-        InlineKeyboardButton(text="Создать задачу", callback_data="new_task"),
-        InlineKeyboardButton(text="Просмотр задач", callback_data="view_tasks")
-    )
+    keyboard = InlineKeyboardMarkup()
+    keyboard.add(InlineKeyboardButton("Создать задачу", callback_data='new_task'))
+    keyboard.add(InlineKeyboardButton("Просмотреть задачи", callback_data='view_tasks'))
+    keyboard.add(InlineKeyboardButton("Просмотреть сценарии", callback_data='view_stories'))
+    return keyboard
 
 def channel_keyboard(channels, add_back_button=False):
     markup = InlineKeyboardMarkup(row_width=1)
@@ -41,3 +42,10 @@ def task_approval_keyboard(add_back_button=False):
     if add_back_button:
         markup.add(InlineKeyboardButton(text="Назад", callback_data="go_back"))
     return markup
+
+def story_keyboard(stories):
+    keyboard = InlineKeyboardMarkup()
+    for story in stories:
+        keyboard.add(InlineKeyboardButton(f"Сценарий от {story['created_at']}", callback_data=f"story_{story['story_id']}"))
+    keyboard.add(InlineKeyboardButton("Назад", callback_data='manager_menu'))
+    return keyboard
